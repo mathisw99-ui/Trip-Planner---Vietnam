@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trip Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* ──────────────────────────────────────────────────────────────────────────
+   Tokens
+   ────────────────────────────────────────────────────────────────────────── */
+:root{
+  --ink:#141d25;          /* page base — cool slate, not tinted black */
+  --panel:#1b2831;
+  --panel-2:#22323d;
+  --rule:#30444f;
+  --paper:#e7edf1;
+  --muted:#8fa3b0;
+  --muted-2:#6c8191;
+  --warn:#f2d08a;         /* unbooked — monochrome warm, stays out of the time ramp */
+  /* Type colours. Coral/teal/slate: a red-blue pair is among the safer ones
+     for colour-blind viewers, and none of the three is the amber that means
+     "unbooked". */
+  --t-food:#f2795f;
+  --t-attr:#5ec8c4;
+  --t-other:#8a99a6;
+  --focus:#7fd4ff;
+  --rail-h:76px;
+  --bar-h:52px;
+  --font:"Barlow","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --font-c:"Barlow Condensed","Barlow","Helvetica Neue",Arial,sans-serif;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%;overflow:hidden}
+body{
+  margin:0; background:var(--ink); color:var(--paper);
+  font-family:var(--font); font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  overflow:hidden;
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+a{color:var(--focus);text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Top bar
+   ────────────────────────────────────────────────────────────────────────── */
+.bar{
+  height:var(--bar-h); display:flex; align-items:center; gap:16px;
+  padding:0 14px; border-bottom:1px solid var(--rule); background:var(--panel);
+  position:relative; z-index:800;
+}
+.bar__title{font-family:var(--font-c);font-size:22px;font-weight:600;letter-spacing:.01em;white-space:nowrap}
+.bar__dates{color:var(--muted);font-family:var(--font-c);font-size:17px;white-space:nowrap}
+.bar__spacer{flex:1}
+.bar__flag{
+  display:flex;align-items:center;gap:7px;color:var(--warn);
+  font-size:13px;white-space:nowrap;
+}
+.bar__flag::before{
+  content:"";width:9px;height:9px;border-radius:50%;
+  border:1.5px dashed var(--warn);
+}
+.tabs{display:flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+.tabs button{padding:5px 15px;color:var(--muted);font-size:14px}
+.tabs button[aria-selected="true"]{background:var(--panel-2);color:var(--paper)}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Day rail — the departure-board strip. One cell per day; the label under
+   each number is where you sleep that night.
+   ────────────────────────────────────────────────────────────────────────── */
+.rail{
+  height:var(--rail-h); display:flex; align-items:stretch;
+  border-bottom:1px solid var(--rule); background:var(--panel);
+  position:relative; z-index:700;
+}
+.rail__nav{width:34px;flex:none;color:var(--muted);font-size:17px}
+.rail__nav:hover{color:var(--paper);background:var(--panel-2)}
+.rail__nav:disabled{opacity:.25;cursor:default;background:none}
+.rail__track{
+  flex:1;display:flex;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;
+  scroll-snap-type:x proximity;
+  position:relative;   /* so day.offsetLeft is measured against the track */
+}
+.rail__track::-webkit-scrollbar{height:4px}
+.rail__track::-webkit-scrollbar-thumb{background:var(--rule)}
+.day{
+  flex:0 0 auto; min-width:92px; scroll-snap-align:center;
+  display:flex;flex-direction:column;justify-content:center;gap:1px;
+  padding:6px 12px; text-align:left;
+  border-right:1px solid var(--rule); border-bottom:3px solid transparent;
+  color:var(--muted);
+}
+.day:hover{background:var(--panel-2)}
+.day[aria-pressed="true"]{background:var(--panel-2);color:var(--paper);border-bottom-color:var(--paper)}
+.day--all{min-width:64px;border-right:1px solid var(--rule)}
+.day__n{font-family:var(--font-c);font-size:13px;letter-spacing:.06em;color:var(--muted-2)}
+.day[aria-pressed="true"] .day__n{color:var(--muted)}
+.day__date{font-family:var(--font-c);font-size:19px;font-weight:600;line-height:1.1}
+.day__sleep{
+  font-size:11.5px;line-height:1.25;color:var(--muted-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;
+}
+.day[aria-pressed="true"] .day__sleep{color:var(--muted)}
+.day__mark{
+  width:6px;height:6px;border-radius:50%;border:1px dashed var(--warn);
+  display:inline-block;vertical-align:middle;margin-left:5px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Stage
+   ────────────────────────────────────────────────────────────────────────── */
+.stage{position:absolute;inset:calc(var(--bar-h) + var(--rail-h) + env(safe-area-inset-top,0px)) 0 env(safe-area-inset-bottom,0px) 0}
+#map{position:absolute;inset:0;background:#0e161c}
+#map.is-hidden{visibility:hidden}
+.leaflet-container{background:#0e161c;font-family:var(--font)}
+/* Dark basemap without a tile-provider account. Scoped to the tile pane so it
+   never touches markers, paths or controls. */
+.leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) brightness(.93) contrast(.86) saturate(.7)}
+.leaflet-control-attribution{background:rgba(20,29,37,.8)!important;color:var(--muted-2)!important;font-size:10px}
+.leaflet-control-attribution a{color:var(--muted)!important}
+.leaflet-bar a{background:var(--panel);color:var(--paper);border-color:var(--rule)}
+.leaflet-bar a:hover{background:var(--panel-2);color:var(--paper)}
+
+/* ── Map nodes ─────────────────────────────────────────────────────────── */
+.node{position:relative;width:22px;height:22px}
+.node__dot{
+  position:absolute;inset:5px;background:var(--c,#888);
+  border:1.5px solid rgba(255,255,255,.85);
+  box-shadow:0 0 0 1px rgba(0,0,0,.5), 0 0 10px -1px var(--c,#888);
+}
+.node--place .node__dot,.node--food .node__dot{border-radius:50%}
+.node--stay .node__dot{border-radius:2px}
+.node--hub .node__dot{border-radius:2px;transform:rotate(45deg);inset:4px}
+.node--waypoint .node__dot{inset:7px;border-radius:50%;border-width:1px}
+.node__ring{
+  position:absolute;inset:0;border-radius:50%;
+  border:1.5px dashed var(--warn);opacity:0;
+}
+.node.is-unbooked .node__ring{opacity:1;animation:pulse 2.4s ease-out infinite}
+.node.is-active .node__dot{box-shadow:0 0 0 2px var(--paper), 0 0 14px 1px var(--c,#888)}
+@keyframes pulse{
+  0%{transform:scale(.8);opacity:.95}
+  70%{transform:scale(1.5);opacity:0}
+  100%{transform:scale(1.5);opacity:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .node.is-unbooked .node__ring{animation:none;opacity:.9}
+}
+/* ── Cluster node: a pie of its members' colours, with the count below ─── */
+.cluster{position:relative;width:var(--d);height:var(--d);cursor:pointer}
+.cluster__pie{
+  position:absolute;inset:0;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.85);
+  box-shadow:0 0 0 1px rgba(0,0,0,.55), 0 2px 10px -2px rgba(0,0,0,.6);
+}
+.cluster__ring{
+  position:absolute;inset:-4px;border-radius:50%;
+  border:1.5px dashed var(--warn);opacity:0;
+}
+.cluster.is-unbooked .cluster__ring{opacity:1}
+.cluster.is-active .cluster__pie{box-shadow:0 0 0 2px var(--paper), 0 2px 12px -2px rgba(0,0,0,.7)}
+.cluster__n{
+  position:absolute;top:calc(var(--d) + 2px);left:50%;transform:translateX(-50%);
+  font-family:var(--font-c);font-size:12px;font-weight:600;line-height:1.25;
+  color:var(--paper);background:rgba(20,29,37,.88);border:1px solid var(--rule);
+  border-radius:2px;padding:0 5px;white-space:nowrap;
+}
+
+.leaflet-tooltip.tip{
+  background:var(--panel);border:1px solid var(--rule);color:var(--paper);
+  border-radius:2px;box-shadow:none;font-size:12px;padding:3px 7px;
+}
+.leaflet-tooltip.tip::before{display:none}
+
+/* ── Legend ────────────────────────────────────────────────────────────── */
+.legend{
+  position:absolute;left:12px;bottom:18px;z-index:600;
+  background:rgba(27,40,49,.93);border:1px solid var(--rule);border-radius:3px;
+  padding:9px 11px;font-size:11.5px;color:var(--muted);max-width:216px;
+  backdrop-filter:blur(3px);
+}
+.legend__ramp{
+  height:7px;border-radius:1px;margin:3px 0 4px;
+  background:linear-gradient(90deg,#2a376e 0%,#3b6ed6 23%,#569cd6 38%,#e0b341 54%,#e07d3e 71%,#cb3e3d 83%,#2a376e 100%);
+}
+.legend__scale{display:flex;justify-content:space-between;font-family:var(--font-c);font-size:11px;letter-spacing:.04em}
+.legend__modes{margin-top:9px;display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center}
+.legend__types{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;margin:4px 0 2px}
+.legend__types i{width:11px;height:11px;border-radius:50%;display:block;border:1px solid rgba(255,255,255,.7)}
+.legend__switch{display:flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden;margin:6px 0 2px}
+.legend__switch button{flex:1;padding:3px 0;font-size:11.5px;color:var(--muted-2)}
+.legend__switch button[aria-pressed="true"]{background:var(--panel-2);color:var(--paper)}
+.legend__note{font-size:10.5px;color:var(--muted-2);margin-top:2px}
+.legend__modes svg{display:block}
+.legend__toggle{position:absolute;right:6px;top:5px;color:var(--muted-2);font-size:15px;line-height:1;padding:2px 4px}
+.legend.is-collapsed .legend__body{display:none}
+.legend.is-collapsed{padding:5px 9px}
+.legend.is-off{display:none}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Detail panel
+   ────────────────────────────────────────────────────────────────────────── */
+.detail{
+  position:absolute;top:0;right:0;bottom:0;width:330px;z-index:900;
+  background:var(--panel);border-left:1px solid var(--rule);
+  transform:translateX(100%);transition:transform .22s ease;
+  overflow-y:auto;padding:16px 18px 28px;
+}
+.detail.is-open{transform:none}
+@media (prefers-reduced-motion:reduce){.detail{transition:none}}
+.detail__close{position:absolute;top:10px;right:12px;color:var(--muted);font-size:20px;line-height:1}
+.detail__kind{font-family:var(--font-c);font-size:12px;letter-spacing:.1em;color:var(--muted-2)}
+.detail__title{font-family:var(--font-c);font-size:25px;font-weight:600;line-height:1.15;margin:1px 0 10px;padding-right:22px}
+.detail__meta{display:grid;grid-template-columns:86px 1fr;gap:5px 12px;font-size:13.5px;margin-bottom:12px}
+.detail__meta dt{color:var(--muted-2)}
+.detail__meta dd{margin:0}
+.detail__notes{font-size:13.5px;color:var(--muted);border-top:1px solid var(--rule);padding-top:10px;white-space:pre-wrap}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;
+  border:1px solid var(--rule);border-radius:2px;padding:2px 8px;color:var(--muted);
+}
+.chip--unbooked{border-color:var(--warn);color:var(--warn)}
+.chip--unbooked::before{content:"";width:7px;height:7px;border-radius:50%;border:1.5px dashed var(--warn)}
+.chip--booked::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted-2)}
+.swatch{width:10px;height:10px;border-radius:50%;display:inline-block;vertical-align:-1px;margin-right:6px}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   List view
+   ────────────────────────────────────────────────────────────────────────── */
+#list{position:absolute;inset:0;overflow-y:auto;padding:0 0 60px;display:none}
+#list.is-visible{display:block}
+.dayblock{border-bottom:1px solid var(--rule)}
+.dayblock__head{
+  display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  padding:14px 20px 8px;position:sticky;top:0;background:var(--ink);z-index:2;
+}
+.dayblock__n{font-family:var(--font-c);font-size:12px;letter-spacing:.1em;color:var(--muted-2)}
+.dayblock__date{font-family:var(--font-c);font-size:21px;font-weight:600}
+.dayblock__sleep{font-size:13px;color:var(--muted)}
+.items{list-style:none;margin:0;padding:0 20px 16px}
+.item{
+  display:grid;grid-template-columns:62px 14px 1fr;gap:12px;align-items:start;
+  padding:8px 0;border-top:1px solid rgba(48,68,79,.5);width:100%;text-align:left;
+}
+.item:first-child{border-top:0}
+.item:hover{background:rgba(34,50,61,.5)}
+.item__time{font-family:var(--font-c);font-size:15px;color:var(--muted);padding-top:1px;letter-spacing:.02em}
+.item__mark{width:12px;height:12px;border-radius:50%;background:var(--c,#60707c);margin-top:4px;position:relative}
+.item__mark.is-unbooked{background:transparent;border:1.5px dashed var(--warn)}
+.item__title{font-size:14.5px}
+.item__sub{font-size:12.5px;color:var(--muted-2)}
+.empty{padding:16px 20px;color:var(--muted-2);font-size:13.5px}
+.list__intro{padding:18px 20px 4px;color:var(--muted);font-size:13.5px;max-width:62ch}
+
+@media (max-width:720px){
+  :root{--rail-h:70px}
+  .bar__dates{display:none}
+  .detail{width:auto;left:0;top:auto;height:62%;border-left:0;border-top:1px solid var(--rule);
+          transform:translateY(100%);border-radius:5px 5px 0 0}
+  .detail.is-open{transform:none}
+  .legend{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <span class="bar__title" id="tripName">Trip</span>
+  <span class="bar__dates" id="tripDates"></span>
+  <span class="bar__spacer"></span>
+  <span class="bar__flag" id="unbookedFlag" hidden></span>
+  <div class="tabs" role="tablist" aria-label="View">
+    <button id="tabMap" role="tab" aria-selected="true">Map</button>
+    <button id="tabList" role="tab" aria-selected="false">List</button>
+  </div>
+</header>
+
+<nav class="rail" aria-label="Day">
+  <button class="rail__nav" id="railPrev" aria-label="Previous day">&#8249;</button>
+  <div class="rail__track" id="railTrack"></div>
+  <button class="rail__nav" id="railNext" aria-label="Next day">&#8250;</button>
+</nav>
+
+<main class="stage">
+  <div id="map"></div>
+
+  <section id="list" role="tabpanel" aria-labelledby="tabList"></section>
+
+  <div class="legend" id="legend">
+    <button class="legend__toggle" id="legendToggle" aria-label="Collapse legend">&minus;</button>
+    <div class="legend__body">
+      <div class="legend__switch" role="group" aria-label="Colour nodes by">
+        <button id="modeType" data-mode="type" aria-pressed="true">Type</button>
+        <button id="modeTime" data-mode="time" aria-pressed="false">Time</button>
+      </div>
+      <div id="legendKey"></div>
+      <div class="legend__modes" id="legendModes"></div>
+    </div>
+  </div>
+
+  <aside class="detail" id="detail" aria-live="polite">
+    <button class="detail__close" id="detailClose" aria-label="Close details">&times;</button>
+    <div id="detailBody"></div>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script id="trip-data">
+/* ===========================================================================
+   SAMPLE DATA  —  delete this whole <script> block once Notion is live.
+
+   This mirrors the Notion databases: same shape `get-trip-data.js?source=…`
+   returns, same field names, and only the rows whose `Published` box is
+   ticked — exactly what the live site will show.
+
+   TWO THINGS ARE NOT FROM NOTION, and must not be copied back into it:
+
+   1. COORDINATES on places and food are neighbourhood-level placeholders,
+      added here so the map has something to draw and the clustering has
+      something to cluster. They are NOT real addresses. Notion holds the
+      honest version: coordinates blank until you fill them in.
+   2. TIMES on items the spreadsheet left unscheduled were inferred from the
+      order they were listed in (breakfast → lunch → dinner). Explicit times
+      from the spreadsheet — the 10am cooking class, the 6pm circus, the 8pm
+      cao lau dinner — are as written.
+
+   Dates and flight times come from the Schedule tab, which is authoritative.
+   =========================================================================== */
+window.SAMPLE = {
+
+  trip: {
+    name: "Vietnam",
+    startDate: "2026-11-13",
+    endDate: "2026-11-26",
+    travelers: null,
+    defaultTz: "Asia/Ho_Chi_Minh"
+  },
+
+  days: [
+    { date:"2026-11-13", sleeping:"Ho Chi Minh Airbnb",                 base:"Ho Chi Minh City", summary:"Land 04:45" },
+    { date:"2026-11-14", sleeping:"Ho Chi Minh Airbnb",                 base:"Ho Chi Minh City", summary:"Full day in the city" },
+    { date:"2026-11-15", sleeping:"Hanoi",                              base:"Hanoi",            summary:"Morning flight north, then a chiller day" },
+    { date:"2026-11-16", sleeping:"Sleeper bus (Hanoi → Ha Giang)",     base:"In transit",       summary:"Loop pickup at 38A Phố Trần Phú, Ba Đình" },
+    { date:"2026-11-17", sleeping:"Dong Van",                           base:"Ha Giang loop",    summary:"Ha Giang loop day 1" },
+    { date:"2026-11-18", sleeping:"Dong Van",                           base:"Ha Giang loop",    summary:"Ha Giang loop day 2" },
+    { date:"2026-11-19", sleeping:"Du Gia",                             base:"Ha Giang loop",    summary:"Ha Giang loop day 3" },
+    { date:"2026-11-20", sleeping:"Sleeper bus (Ha Giang → Ninh Binh)", base:"In transit",       summary:"Ha Giang loop day 4, then the overnight bus south" },
+    { date:"2026-11-21", sleeping:"Ninh Binh (Tam Coc)",                base:"Ninh Binh",        summary:"Hang Mua, Trang An boat tour" },
+    { date:"2026-11-22", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Long transfer day: bus, flight, drive" },
+    { date:"2026-11-23", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Lantern class, boat and lantern release" },
+    { date:"2026-11-24", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Cooking class, An Bang beach, bamboo circus" },
+    { date:"2026-11-25", sleeping:"Ho Chi Minh",                        base:"Ho Chi Minh City", summary:"Early temples, then fly south" },
+    { date:"2026-11-26", sleeping:null,                                 base:"Flying home",      summary:"Leave 18:40, land SF 17:00 the same day" }
+  ],
+
+  flights: [
+    { id:"F1", airline:null, flightNo:null, from:"SFO", to:"SGN",
+      date:"2026-11-13", depLocal:null, arrLocal:"04:45", durationMin:null,
+      price:null, booked:true, link:null,
+      notes:"Only the arrival is recorded (\"land fri nov 13 @ 4:45am\"). Departure date and time from SFO still needed." },
+
+    { id:"F2", airline:null, flightNo:null, from:"SGN", to:"HAN",
+      date:"2026-11-15", depLocal:"08:00", arrLocal:"10:10", durationMin:130,
+      price:118, booked:false, link:null,
+      notes:"$118 total for both. Morning flight — moved from the evening slot in the earlier version of the schedule." },
+
+    { id:"F3", airline:null, flightNo:null, from:"HAN", to:"DAD",
+      date:"2026-11-22", depLocal:"11:15", arrLocal:"12:40", durationMin:85,
+      price:null, booked:false, link:null,
+      notes:"Schedule tab puts this on 22 Nov; the to-book list says 23 Nov. Schedule tab used." },
+
+    { id:"F4", airline:null, flightNo:null, from:"DAD", to:"SGN",
+      date:"2026-11-25", depLocal:"12:10", arrLocal:"13:45", durationMin:95,
+      price:null, booked:false, link:null, notes:null },
+
+    { id:"F5", airline:null, flightNo:null, from:"SGN", to:"SFO",
+      date:"2026-11-26", depLocal:"18:40", arrLocal:"17:00", durationMin:null,
+      price:null, booked:true, link:null,
+      notes:"Lands SF 17:00 the same calendar day — eastbound across the date line, so the arrival clock reads earlier than the departure." }
+  ],
+
+  stays: [
+    { id:"S1", name:"Ho Chi Minh Airbnb", location:"Ho Chi Minh City",
+      lat:10.7769, lng:106.7009, checkIn:"2026-11-13", checkOut:"2026-11-15",
+      price:null, link:null, booked:false, notes:"2 nights. Coordinates are a city-centre placeholder." },
+
+    { id:"S2", name:"Hanoi hotel", location:"Hanoi (Old Quarter)",
+      lat:21.0338, lng:105.8500, checkIn:"2026-11-15", checkOut:"2026-11-16",
+      price:null, link:null, booked:false, notes:"1 night. Arriving late morning off the 10:10 flight." },
+
+    { id:"S3", name:"Dong Van homestay", location:"Dong Van",
+      lat:23.2764, lng:105.3636, checkIn:"2026-11-17", checkOut:"2026-11-19",
+      price:null, link:null, booked:false, notes:"2 nights, part of the Ha Giang loop package." },
+
+    { id:"S4", name:"Du Gia homestay", location:"Du Gia",
+      lat:22.8833, lng:105.1500, checkIn:"2026-11-19", checkOut:"2026-11-20",
+      price:null, link:null, booked:false, notes:"1 night, part of the Ha Giang loop package. Coordinates approximate." },
+
+    { id:"S5", name:"Ninh Binh Airbnb", location:"Tam Coc, Ninh Binh",
+      lat:20.2244, lng:105.9167, checkIn:"2026-11-21", checkOut:"2026-11-22",
+      price:null, link:null, booked:false,
+      notes:"1 night on the Schedule tab; the to-book list says 2 nights. Schedule tab used — worth confirming." },
+
+    { id:"S6", name:"Hoi An Airbnb", location:"Hoi An Ancient Town",
+      lat:15.8801, lng:108.3380, checkIn:"2026-11-22", checkOut:"2026-11-25",
+      price:null, link:null, booked:false,
+      notes:"3 nights on the Schedule tab; the to-book list says 2 nights. Schedule tab used — worth confirming." },
+
+    { id:"S7", name:"Ho Chi Minh Airbnb (last night)", location:"Ho Chi Minh City",
+      lat:10.7769, lng:106.7009, checkIn:"2026-11-25", checkOut:"2026-11-26",
+      price:null, link:null, booked:false, notes:"1 night before the flight home." }
+  ],
+
+  places: [
+    { id:"P01", name:"Tao Đàn Park", lat:10.7760, lng:106.6920, date:"2026-11-13", time:"07:45", category:"Nature",   link:null, booked:null, notes:"Somewhere to sit and eat the banh mi." },
+    { id:"P02", name:"Walk around Phú Nhuận", lat:10.7955, lng:106.6790, date:"2026-11-13", time:"09:00", category:"Other", link:null, booked:null, notes:"Route: Đặng Văn Ngữ → Nguyễn Đình Chiểu → Phan Đăng Lưu." },
+    { id:"P03", name:"Walk around District 3", lat:10.7830, lng:106.6890, date:"2026-11-13", time:"15:30", category:"Other", link:null, booked:null, notes:"Tree-lined streets, older architecture and local cafés. Route: Võ Thị Sáu → Nguyễn Đình Chiểu → Nam Kỳ Khởi Nghĩa → Hồ Xuân Hương → Turtle Lake." },
+    { id:"P04", name:"War Remnants Museum", lat:10.7797, lng:106.6922, date:"2026-11-13", time:"16:15", category:"Museum", link:null, booked:null, notes:"Check closing time before going — it shuts in the late afternoon." },
+    { id:"P05", name:"The Cafe Apartments", lat:10.7745, lng:106.7040, date:"2026-11-13", time:"17:45", category:"Shopping", link:null, booked:null, notes:"A historic nine-story residential block converted into a vertical maze of independent coffee shops, boutiques and creative studios." },
+    { id:"P06", name:"District 1 evening walk", lat:10.7740, lng:106.7020, date:"2026-11-13", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Nguyễn Huệ → Đồng Khởi → Tôn Thất Thiệp." },
+    { id:"P07", name:"Walk around Chợ Lớn / District 5", lat:10.7530, lng:106.6580, date:"2026-11-14", time:"09:30", category:"Other", link:null, booked:null, notes:"Saigon's historic Chinese quarter." },
+    { id:"P08", name:"Bình Tây Market", lat:10.7500, lng:106.6500, date:"2026-11-14", time:"10:45", category:"Shopping", link:null, booked:null, notes:"Don't spend hours inside the market itself. The fun part is actually walking around the neighbourhood surrounding it." },
+    { id:"P09", name:"Saigon Michelin-rated street food tour", lat:10.7720, lng:106.6980, date:"2026-11-14", time:"15:00", category:"Food tour", link:"https://www.getyourguide.com/ho-chi-minh-city-l272/saigon-michelin-rated-street-food-tour-with-female-rider-t1262941/", booked:false, notes:"On the to-book list. Time is a guess — set it once you book a slot." },
+    { id:"P10", name:"Explore the quieter side of District 1", lat:10.7690, lng:106.6965, date:"2026-11-14", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Đề Thám → Nguyễn Thái Bình → Tôn Thất Đạm → Hồ Tùng Mậu → Nguyễn Huệ. Avoid Bùi Viện." },
+    { id:"P11", name:"Walk the French Quarter and Old Quarter", lat:21.0300, lng:105.8530, date:"2026-11-15", time:"14:00", category:"Other", link:null, booked:null, notes:"First afternoon in Hanoi, straight off the morning flight." },
+    { id:"P12", name:"Bat Trang Pottery Museum", lat:20.9780, lng:105.9130, date:"2026-11-16", time:"09:30", category:"Museum", link:null, booked:null, notes:"Amazing architecture. Out in Bat Trang village, roughly 30–40 min from the Old Quarter — check the travel time against the bus pickup that evening." },
+    { id:"P13", name:"Tony Eats Hanoi street food tour", lat:21.0345, lng:105.8510, date:"2026-11-16", time:"12:00", category:"Food tour", link:"https://www.viator.com/tours/Hanoi/Taste-Hanois-Street-Food-Small-Group-Vegan-Friendly-Tour/d351-5538064P2", booked:false, notes:"$35. WhatsApp +84 96 357 21 59. On the to-book list. Placed on 16 Nov rather than 15 Nov — landing at 10:10 leaves little slack for a midday start the same day." },
+    { id:"P14", name:"Hang Mua", lat:20.2345, lng:105.9360, date:"2026-11-21", time:"07:00", category:"Nature", link:null, booked:null, notes:"20 min uphill walk. Go early to beat the crowds and the heat." },
+    { id:"P15", name:"Hang Mua lotus field", lat:20.2340, lng:105.9355, date:"2026-11-21", time:"08:15", category:"Nature", link:null, booked:null, notes:"Walk through it on the way down." },
+    { id:"P16", name:"Bich Dong Pagoda", lat:20.2139, lng:105.9353, date:"2026-11-21", time:"09:30", category:"Sight", link:null, booked:null, notes:"Pagoda built into a cave. 1–2 h walk." },
+    { id:"P17", name:"Buffalo Cave", lat:20.2200, lng:105.9300, date:"2026-11-21", time:"11:15", category:"Nature", link:null, booked:null, notes:"Spreadsheet records \"3.0\" against this one — carried over as written, meaning unclear." },
+    { id:"P18", name:"Trang An boat tour", lat:20.2506, lng:105.8953, date:"2026-11-21", time:"15:00", category:"Activity", link:null, booked:null, notes:"3 h. Go with Trang An, take route 3. No need to book in advance. 300k VND." },
+    { id:"P19", name:"Lantern making class", lat:15.8795, lng:108.3285, date:"2026-11-23", time:"10:00", category:"Activity", link:null, booked:false, notes:"Book via KLOOK. Time is a guess — set it once booked." },
+    { id:"P20", name:"Boat ride and lantern release", lat:15.8770, lng:108.3300, date:"2026-11-23", time:"17:00", category:"Activity", link:null, booked:false, notes:"Book via KLOOK. 5pm as stated." },
+    { id:"P21", name:"Explore the Ancient Town", lat:15.8790, lng:108.3280, date:"2026-11-23", time:"19:30", category:"Other", link:null, booked:null, notes:"Dinner and a wander after the lantern release." },
+    { id:"P22", name:"Bike or walk around the old town", lat:15.8790, lng:108.3280, date:"2026-11-24", time:"08:30", category:"Other", link:null, booked:null, notes:null },
+    { id:"P23", name:"Cooking class", lat:15.8800, lng:108.3300, date:"2026-11-24", time:"10:00", category:"Activity", link:null, booked:false, notes:"2 h, 10am as stated. Book via KLOOK." },
+    { id:"P24", name:"Museum of Trade Ceramics", lat:15.8780, lng:108.3272, date:"2026-11-24", time:"14:00", category:"Museum", link:null, booked:null, notes:"120,000 VND / about $5." },
+    { id:"P25", name:"Precious Heritage Museum", lat:15.8783, lng:108.3255, date:"2026-11-24", time:"14:45", category:"Museum", link:null, booked:null, notes:"Free entrance." },
+    { id:"P26", name:"An Bang Beach", lat:15.9115, lng:108.3400, date:"2026-11-24", time:"15:30", category:"Nature", link:null, booked:null, notes:"15–20 min from Hoi An." },
+    { id:"P27", name:"Hoi An Lune Center bamboo circus", lat:15.8820, lng:108.3350, date:"2026-11-24", time:"18:00", category:"Activity", link:null, booked:false, notes:"Hypnotic, daring acrobatic spectacle. $27 USD. 6PM as stated." },
+    { id:"P28", name:"Japanese Covered Bridge", lat:15.8771, lng:108.3262, date:"2026-11-25", time:"08:00", category:"Sight", link:null, booked:null, notes:"Early start to avoid the crowds." },
+    { id:"P29", name:"Ba Mu Temple Gate", lat:15.8800, lng:108.3290, date:"2026-11-25", time:"08:20", category:"Sight", link:null, booked:null, notes:null },
+    { id:"P30", name:"Phap Bao Pagoda", lat:15.8810, lng:108.3270, date:"2026-11-25", time:"08:40", category:"Sight", link:null, booked:null, notes:null },
+    { id:"P31", name:"Confucius Temple", lat:15.8818, lng:108.3265, date:"2026-11-25", time:"09:00", category:"Sight", link:null, booked:null, notes:null },
+    { id:"P32", name:"Ancient House", lat:15.8785, lng:108.3285, date:"2026-11-25", time:"09:20", category:"Sight", link:null, booked:null, notes:null },
+    { id:"P33", name:"Marble Mountains", lat:16.0034, lng:108.2630, date:"2026-11-25", time:"08:00", category:"Nature", link:null, booked:null, notes:"Caves and viewpoints, a lot of stairs. Sits roughly on the Hoi An → airport route. Clashes with the Hoi An temple run the same morning — pick one." }
+  ],
+
+  food: [
+    { id:"E01", name:"Banh Mi Hong Hoa", lat:10.7708, lng:106.6930, type:"Street stall", date:"2026-11-13", time:"07:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Breakfast, first morning." },
+    { id:"E02", name:"Vietnamese coffee", lat:10.7780, lng:106.6950, type:"Cafe", date:"2026-11-13", time:"10:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"No specific place named in the spreadsheet — pick one on the day." },
+    { id:"E03", name:"Cơm Tấm Ba Ghiền", lat:10.7940, lng:106.6800, type:"Restaurant", date:"2026-11-13", time:"12:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Cơm tấm = broken rice, grilled pork, egg, pickles, scallion oil, fish sauce." },
+    { id:"E04", name:"Pho Hoa Pasteur", lat:10.7897, lng:106.6878, type:"Restaurant", date:"2026-11-13", time:"19:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E05", name:"Bánh Xèo 46A", lat:10.7865, lng:106.6905, type:"Restaurant", date:"2026-11-13", time:"19:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Alternative to Pho Hoa Pasteur the same evening — might be too busy." },
+    { id:"E06", name:"Bánh Canh Cua 14", lat:10.7920, lng:106.6850, type:"Street stall", date:"2026-11-14", time:"08:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E07", name:"Kieu Bao Barbecue Rice Noodles", lat:10.7680, lng:106.6940, type:"Restaurant", date:"2026-11-14", time:"19:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"139 Đề Thám, Cầu Ông Lãnh. A snack-ish dinner rather than your only meal." },
+    { id:"E08", name:"Vietnamese dessert / chè", lat:10.7700, lng:106.6950, type:"Dessert", date:"2026-11-14", time:"21:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"No specific place named — pick one on the walk." },
+    { id:"E09", name:"Cocktail bar", lat:10.7735, lng:106.7005, type:"Bar", date:"2026-11-14", time:"21:45", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"No specific place named." },
+    { id:"E10", name:"MAY Kitchenware", lat:21.0400, lng:105.8380, type:"Cafe", date:"2026-11-15", time:"16:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Salt coffee, cute bowls." },
+    { id:"E11", name:"Tầm Vị", lat:21.0180, lng:105.8180, type:"Restaurant", date:"2026-11-15", time:"19:30", openTime:null, reservation:"Anais is making it", confidence:null, link:null, booked:null, notes:"Cheapest Michelin-star restaurant in Hanoi. Order à la carte." },
+    { id:"E12", name:"Savage Hanoi", lat:21.0420, lng:105.8220, type:"Bar", date:"2026-11-15", time:"22:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E13", name:"Unmute", lat:21.0310, lng:105.8540, type:"Bar", date:"2026-11-15", time:"23:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E14", name:"Bánh Cuốn Bà Xuân", lat:21.0355, lng:105.8495, type:"Street stall", date:"2026-11-16", time:"07:30", openTime:"6:30am–1:30pm, 3:30pm–11:30pm", reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E15", name:"An Phong restaurant", lat:20.2230, lng:105.9180, type:"Restaurant", date:"2026-11-21", time:"12:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E16", name:"Night market Pho Co Hoa Lu", lat:20.2830, lng:105.9100, type:"Market", date:"2026-11-21", time:"19:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E17", name:"Wine At Where", lat:20.2240, lng:105.9175, type:"Bar", date:"2026-11-21", time:"21:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E18", name:"Bếp Cuốn Đà Nẵng", lat:16.0590, lng:108.2200, type:"Restaurant", date:"2026-11-22", time:"13:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Lunch on landing in Da Nang, before the drive to Hoi An." },
+    { id:"E19", name:"Hoi An night market", lat:15.8755, lng:108.3285, type:"Market", date:"2026-11-23", time:"20:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E20", name:"Market Bar", lat:15.8762, lng:108.3292, type:"Bar", date:"2026-11-23", time:"21:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Overlooks the Thu Bon River. Try Lady Trieu, a gin made in Vietnam with lemongrass and star anise, and Chuoi Nui, a sour cocktail with banana-infused rice wine and Sampan Monsoon white rum." },
+    { id:"E21", name:"Eight Days a Week", lat:15.8795, lng:108.3250, type:"Bar", date:"2026-11-23", time:"22:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Bar with live music." },
+    { id:"E22", name:"Hoi An Market food hall", lat:15.8775, lng:108.3300, type:"Market", date:"2026-11-24", time:"12:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E23", name:"Moments Coffee", lat:15.8788, lng:108.3275, type:"Cafe", date:"2026-11-24", time:"13:15", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"One of three coffee options listed for Hoi An; the other two are Faifo and Uncle Huan." },
+    { id:"E24", name:"Roving Chill House", lat:15.8930, lng:108.3290, type:"Cafe", date:"2026-11-24", time:"16:45", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Next to rice fields. Listed as the stop after An Bang Beach." },
+    { id:"E25", name:"Quan Cao Lau Ba Le", lat:15.8800, lng:108.3240, type:"Restaurant", date:"2026-11-24", time:"20:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Hoi An's signature dish: cao lau. 8PM as stated." },
+    { id:"E26", name:"Hem Hoi An", lat:15.8790, lng:108.3268, type:"Bar", date:"2026-11-24", time:"21:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Vietnamese sake." }
+  ],
+
+  transport: [
+    { id:"T1", mode:"bus", label:"Sleeper bus to Ha Giang",
+      fromName:"Hanoi", fromLat:21.0338, fromLng:105.8500,
+      toName:"Ha Giang", toLat:22.8233, toLng:104.9784,
+      date:"2026-11-16", endDate:"2026-11-17", depLocal:"20:00", arrLocal:"03:00",
+      distanceMi:null, durationMin:390, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:["S2"],
+      notes:"6–7 h overnight. Pickup at 38A Phố Trần Phú, Ba Đình, Hà Nội 150000. Departure time is an assumption — confirm with the operator." },
+
+    { id:"T2", mode:"motorbike", label:"Ha Giang loop — day 1",
+      fromName:"Ha Giang", fromLat:22.8233, fromLng:104.9784,
+      toName:"Dong Van", toLat:23.2764, toLng:105.3636,
+      date:"2026-11-17", endDate:null, depLocal:"08:30", arrLocal:null,
+      distanceMi:null, durationMin:null, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:["S3"], notes:"Over Ma Pi Leng Pass." },
+
+    { id:"T3", mode:"motorbike", label:"Ha Giang loop — day 2 (Lung Cu day trip)",
+      fromName:"Dong Van", fromLat:23.2764, fromLng:105.3636,
+      toName:"Lung Cu Flag Tower", toLat:23.3652, toLng:105.3192,
+      date:"2026-11-18", endDate:null, depLocal:"08:30", arrLocal:null,
+      distanceMi:null, durationMin:null, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:[], notes:"Day trip — returns to Dong Van the same evening, so only the outbound leg is drawn." },
+
+    { id:"T4", mode:"motorbike", label:"Ha Giang loop — day 3",
+      fromName:"Dong Van", fromLat:23.2764, fromLng:105.3636,
+      toName:"Du Gia", toLat:22.8833, toLng:105.1500,
+      date:"2026-11-19", endDate:null, depLocal:"08:30", arrLocal:null,
+      distanceMi:null, durationMin:null, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:["S4"], notes:null },
+
+    { id:"T5", mode:"motorbike", label:"Ha Giang loop — day 4",
+      fromName:"Du Gia", fromLat:22.8833, fromLng:105.1500,
+      toName:"Ha Giang", toLat:22.8233, toLng:104.9784,
+      date:"2026-11-20", endDate:null, depLocal:"08:30", arrLocal:null,
+      distanceMi:null, durationMin:null, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:[], notes:"Back to Ha Giang in time for the evening bus south." },
+
+    { id:"T6", mode:"bus", label:"Sleeper bus to Ninh Binh",
+      fromName:"Ha Giang", fromLat:22.8233, fromLng:104.9784,
+      toName:"Ninh Binh", toLat:20.2244, toLng:105.9167,
+      date:"2026-11-20", endDate:"2026-11-21", depLocal:"19:00", arrLocal:"02:00",
+      distanceMi:null, durationMin:390, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:["S5"],
+      notes:"6–7 h overnight. Departure time is an assumption — confirm with the operator. Can book 1–2 days before." },
+
+    { id:"T7", mode:"bus", label:"Limousine bus to Noi Bai",
+      fromName:"Ninh Binh", fromLat:20.2244, fromLng:105.9167,
+      toName:"HAN — Noi Bai", toLat:21.2212, toLng:105.8072,
+      date:"2026-11-22", endDate:null, depLocal:"10:00", arrLocal:"13:00",
+      distanceMi:null, durationMin:180, elevationFt:null, price:19,
+      booked:false, link:null, linkedTo:[],
+      notes:"$19 per person, 3 h. Can leave at 10:00 or 11:00 — 10:00 gives more slack before the 11:15 flight. Can book 1–2 days before." },
+
+    { id:"T8", mode:"taxi", label:"Airport transfer to Hoi An",
+      fromName:"DAD — Da Nang", fromLat:16.0439, fromLng:108.1994,
+      toName:"Hoi An", toLat:15.8801, toLng:108.3380,
+      date:"2026-11-22", endDate:null, depLocal:"15:30", arrLocal:"16:30",
+      distanceMi:null, durationMin:60, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:["S6"],
+      notes:"~1 h drive, arriving Hoi An around 16:30. Leaves room for lunch in Da Nang after the 12:40 landing." },
+
+    { id:"T9", mode:"taxi", label:"Airport transfer to Da Nang",
+      fromName:"Hoi An", fromLat:15.8801, fromLng:108.3380,
+      toName:"DAD — Da Nang", toLat:16.0439, toLng:108.1994,
+      date:"2026-11-25", endDate:null, depLocal:"10:15", arrLocal:"11:15",
+      distanceMi:null, durationMin:60, elevationFt:null, price:null,
+      booked:false, link:null, linkedTo:[],
+      notes:"~1 h drive, ahead of the 12:10 flight. Marble Mountains sit roughly on this route if you leave earlier." }
+  ]
+};
+
+/* Bundled IATA lookup — the one place to fix an airport coordinate.
+   Values are approximate airport reference points; spot-check before relying
+   on them for anything other than drawing the arc. */
+window.AIRPORTS = {
+  SFO:{ name:"San Francisco",            city:"San Francisco", lat:37.6189, lng:-122.3750, tz:"America/Los_Angeles" },
+  SGN:{ name:"Tan Son Nhat",             city:"Ho Chi Minh City", lat:10.8188, lng:106.6520, tz:"Asia/Ho_Chi_Minh" },
+  HAN:{ name:"Noi Bai",                  city:"Hanoi",         lat:21.2212, lng:105.8072, tz:"Asia/Ho_Chi_Minh" },
+  DAD:{ name:"Da Nang International",    city:"Da Nang",       lat:16.0439, lng:108.1994, tz:"Asia/Ho_Chi_Minh" }
+};
+</script>
+
+<script id="trip-app">
+/* ===========================================================================
+   APP
+   ---------------------------------------------------------------------------
+   SCOPE RULE (read before adding a feature):
+   Everything lives inside this one IIFE. All mutable state is declared in the
+   STATE block below, before any function that runs during boot can touch it.
+   New features go inside this IIFE. There are no inline onclick handlers
+   anywhere in the HTML — every listener is attached here with
+   addEventListener, so nothing needs to be hung on `window`.
+   =========================================================================== */
+(function () {
+  'use strict';
+
+  /* ── CONFIG ────────────────────────────────────────────────────────────── */
+
+  // 'sample' reads the inline SAMPLE block. 'notion' hits the Netlify function.
+  // That is the only line that changes when the Notion side is ready.
+  const SOURCE = 'sample';
+  const API = '/.netlify/functions/get-trip-data';
+  const SOURCES = ['days', 'flights', 'stays', 'places', 'food', 'transport'];
+
+  /* ── STATE (declared before boot — do not move below any function call) ── */
+
+  let map = null;
+  let model = null;          // { trip, days[], items[], byId }
+  let selectedDate = 'all';  // ISO date or 'all'
+  let activeId = null;
+  let view = 'map';          // 'map' | 'list'
+  let dayLayer = null;       // LayerGroup rebuilt on every day change
+  let bootError = null;
+  let colourMode = 'type';   // 'type' | 'time' — what the NODE fill encodes
+  let stackIds = null;       // member ids when a cluster's list is open
+
+  const el = {};             // cached DOM refs, filled in cacheDom()
+
+  /* ── CONSTANTS ─────────────────────────────────────────────────────────── */
+
+  // Colour is time of day. Dash pattern is mode. The two encodings are
+  // deliberately orthogonal so a line reads as "6am taxi" at a glance.
+  const TIME_RAMP = [
+    [0,  [42, 55, 110]],   // night
+    [5.5,[59, 110, 214]],  // dawn
+    [9,  [86, 156, 214]],  // morning
+    [13, [224, 179, 65]],  // midday
+    [17, [224, 125, 62]],  // late afternoon
+    [20, [203, 62, 61]],   // evening
+    [24, [42, 55, 110]]    // night
+  ];
+  const NEUTRAL = '#60707c';
+
+  // Three buckets, as asked for: somewhere to eat, something to see, everything
+  // else (stays and route endpoints).
+  const TYPE_COLOR = { food:'#f2795f', attraction:'#5ec8c4', other:'#8a99a6' };
+  const TYPE_LABEL = { food:'Food', attraction:'Attraction', other:'Stay / other' };
+  const TYPE_ORDER = ['food', 'attraction', 'other'];
+
+  // Merge radius in screen pixels. Nodes closer than this to a cluster seed are
+  // folded into it, so the threshold is zoom-dependent for free: zoom in and
+  // the same nodes drift apart past it and separate again.
+  const CLUSTER_PX = 34;
+
+  const MODES = {
+    flight:    { dash: '1 12',     weight: 2.5, cap: 'round', label: 'Flight' },
+    train:     { dash: '14 7',     weight: 3,   cap: 'butt',  label: 'Train' },
+    bus:       { dash: '10 9',     weight: 3,   cap: 'butt',  label: 'Bus' },
+    taxi:      { dash: '3 8',      weight: 3,   cap: 'round', label: 'Taxi / car' },
+    car:       { dash: '3 8',      weight: 3,   cap: 'round', label: 'Taxi / car' },
+    motorbike: { dash: '8 5 2 5',  weight: 2.5, cap: 'round', label: 'Motorbike' },
+    bike:      { dash: '6 6',      weight: 2.5, cap: 'round', label: 'Bike' },
+    walk:      { dash: '1 7',      weight: 4,   cap: 'round', label: 'Walk' },
+    ferry:     { dash: '16 6 2 6', weight: 2.5, cap: 'butt',  label: 'Ferry' },
+    other:     { dash: '5 5',      weight: 2.5, cap: 'butt',  label: 'Other' }
+  };
+  const LEGEND_MODES = ['flight', 'bus', 'taxi', 'motorbike', 'walk', 'train'];
+
+  const KIND_LABEL = {
+    flight: 'Flight', transport: 'Transport', stay: 'Stay',
+    place: 'Place', food: 'Food'
+  };
+
+  /* ── SMALL HELPERS ─────────────────────────────────────────────────────── */
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function dateObj(iso) { return new Date(iso + 'T00:00:00Z'); }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = dateObj(iso);
+    const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()];
+    const mo = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()];
+    return wd + ' ' + d.getUTCDate() + ' ' + mo;
+  }
+
+  function shiftDate(iso, n) {
+    const d = dateObj(iso);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function datesBetween(a, b) {   // [a, b) — nights, not days
+    const out = [];
+    if (!a) return out;
+    let cur = a;
+    const stop = b || shiftDate(a, 1);
+    let guard = 0;
+    while (cur < stop && guard++ < 400) { out.push(cur); cur = shiftDate(cur, 1); }
+    return out.length ? out : [a];
+  }
+
+  function parseHM(s) {               // "21:15" -> 21.25, else null
+    if (!s) return null;
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(s).trim());
+    if (!m) return null;
+    return (+m[1]) + (+m[2]) / 60;
+  }
+
+  function fmtMin(n) {
+    if (n == null) return null;
+    const h = Math.floor(n / 60), m = n % 60;
+    return (h ? h + ' h ' : '') + (m ? m + ' min' : (h ? '' : '0 min'));
+  }
+
+  function timeColor(hhmm) {
+    const h = parseHM(hhmm);
+    if (h == null) return NEUTRAL;
+    for (let i = 1; i < TIME_RAMP.length; i++) {
+      if (h <= TIME_RAMP[i][0]) {
+        const [h0, c0] = TIME_RAMP[i - 1], [h1, c1] = TIME_RAMP[i];
+        const t = (h - h0) / (h1 - h0);
+        const c = c0.map(function (v, k) { return Math.round(v + (c1[k] - v) * t); });
+        return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+      }
+    }
+    return NEUTRAL;
+  }
+
+  /* ── GEOMETRY ──────────────────────────────────────────────────────────── */
+
+  const R = Math.PI / 180, D = 180 / Math.PI;
+
+  // Great-circle interpolation. Longitudes are returned UNWRAPPED (they can run
+  // past ±180) so a Pacific crossing stays one continuous line instead of
+  // snapping back across the whole map. drawLeg() then renders the same path at
+  // -360 / 0 / +360 so it is visible in whichever world copy is on screen.
+  function greatCircle(a, b, n) {
+    n = n || 64;
+    const lat1 = a[0] * R, lon1 = a[1] * R, lat2 = b[0] * R, lon2 = b[1] * R;
+    const dl = Math.sin((lat1 - lat2) / 2) ** 2 +
+               Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon1 - lon2) / 2) ** 2;
+    const d = 2 * Math.asin(Math.min(1, Math.sqrt(dl)));
+    if (!isFinite(d) || d < 1e-9) return [[a[0], a[1]], [b[0], b[1]]];
+
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const f = i / n;
+      const A = Math.sin((1 - f) * d) / Math.sin(d);
+      const B = Math.sin(f * d) / Math.sin(d);
+      const x = A * Math.cos(lat1) * Math.cos(lon1) + B * Math.cos(lat2) * Math.cos(lon2);
+      const y = A * Math.cos(lat1) * Math.sin(lon1) + B * Math.cos(lat2) * Math.sin(lon2);
+      const z = A * Math.sin(lat1) + B * Math.sin(lat2);
+      pts.push([Math.atan2(z, Math.hypot(x, y)) * D, Math.atan2(y, x) * D]);
+    }
+    for (let i = 1; i < pts.length; i++) {          // unwrap the antimeridian
+      const delta = pts[i][1] - pts[i - 1][1];
+      if (delta > 180) pts[i][1] -= 360;
+      else if (delta < -180) pts[i][1] += 360;
+    }
+    return pts;
+  }
+
+  function gcMiles(a, b) {
+    const dl = Math.sin((a[0] - b[0]) * R / 2) ** 2 +
+               Math.cos(a[0] * R) * Math.cos(b[0] * R) * Math.sin((a[1] - b[1]) * R / 2) ** 2;
+    return Math.round(2 * 3958.8 * Math.asin(Math.min(1, Math.sqrt(dl))));
+  }
+
+  /* ── DATA LOADING ──────────────────────────────────────────────────────── */
+
+  // The single swap point between sample data and live Notion. Both paths must
+  // return the same shape; nothing downstream knows which one ran.
+  async function loadRaw() {
+    if (SOURCE === 'sample') return window.SAMPLE;
+
+    const out = {};
+    const results = await Promise.all(SOURCES.map(async function (s) {
+      const res = await fetch(API + '?source=' + encodeURIComponent(s));
+      if (!res.ok) throw new Error(s + ': HTTP ' + res.status + ' — ' + (await res.text()).slice(0, 200));
+      return [s, await res.json()];
+    }));
+    results.forEach(function (p) { out[p[0]] = p[1]; });
+    out.trip = (out.days && out.days.trip) || window.SAMPLE.trip;
+    return out;
+  }
+
+  function airport(code) {
+    const a = window.AIRPORTS[code];
+    if (!a) return null;
+    const label = a.name && a.name !== a.city ? a.city + ' (' + a.name + ')' : a.city;
+    return { code: code, name: label, lat: a.lat, lng: a.lng };
+  }
+
+  /* ── MODEL ─────────────────────────────────────────────────────────────── */
+
+  function buildModel(raw) {
+    const days = (raw.days || []).map(function (d, i) {
+      return { date: d.date, n: i + 1, sleeping: d.sleeping, base: d.base, summary: d.summary };
+    });
+    const items = [];
+
+    (raw.flights || []).forEach(function (f) {
+      const from = airport(f.from), to = airport(f.to);
+      if (!from || !to) return;                     // unknown IATA — add it to AIRPORTS
+      const fields = [
+        ['Route', from.name + ' → ' + to.name],
+        ['Flight', [f.airline, f.flightNo].filter(Boolean).join(' ') || null],
+        ['Departs', f.depLocal ? f.depLocal + ' local' : null],
+        ['Arrives', f.arrLocal ? f.arrLocal + ' local' : null],
+        ['In the air', fmtMin(f.durationMin)],
+        ['Distance', gcMiles([from.lat, from.lng], [to.lat, to.lng]) + ' mi great-circle'],
+        ['Price', f.price != null ? '$' + f.price : null]
+      ];
+      items.push({
+        id: f.id, kind: 'flight', geo: 'leg', mode: 'flight',
+        title: f.from + ' → ' + f.to,
+        subtitle: from.name + ' to ' + to.name,
+        dates: [f.date], time: f.depLocal || f.arrLocal, booked: f.booked,
+        from: from, to: to, fields: fields, notes: f.notes, link: f.link
+      });
+    });
+
+    (raw.transport || []).forEach(function (t) {
+      const fields = [
+        ['Mode', (MODES[t.mode] || MODES.other).label],
+        ['Route', t.fromName + ' → ' + t.toName],
+        ['Departs', t.depLocal ? t.depLocal + ' local' : null],
+        ['Arrives', t.arrLocal ? t.arrLocal + ' local' : null],
+        ['Duration', fmtMin(t.durationMin)],
+        ['Distance', t.distanceMi != null ? t.distanceMi + ' mi' : null],
+        ['Elevation', t.elevationFt != null ? '+' + t.elevationFt + ' ft' : null],
+        ['Price', t.price != null ? '$' + t.price : null]
+      ];
+      items.push({
+        id: t.id, kind: 'transport', geo: 'leg', mode: t.mode || 'other',
+        title: t.label || (t.fromName + ' → ' + t.toName),
+        subtitle: t.fromName + ' → ' + t.toName,
+        dates: t.endDate ? [t.date, t.endDate] : [t.date],
+        time: t.depLocal, booked: t.booked,
+        from: { name: t.fromName, lat: t.fromLat, lng: t.fromLng },
+        to: { name: t.toName, lat: t.toLat, lng: t.toLng },
+        fields: fields, notes: t.notes, link: t.link, linkedTo: t.linkedTo || []
+      });
+    });
+
+    (raw.stays || []).forEach(function (s) {
+      const nights = datesBetween(s.checkIn, s.checkOut);
+      const fields = [
+        ['Where', s.location],
+        ['Check in', fmtDate(s.checkIn)],
+        ['Check out', fmtDate(s.checkOut)],
+        ['Nights', String(nights.length)],
+        ['Price', s.price != null ? '$' + s.price : null]
+      ];
+      items.push({
+        id: s.id, kind: 'stay', geo: 'point',
+        title: s.name, subtitle: s.location,
+        dates: nights, time: '20:00', timeIsDefault: true, booked: s.booked,
+        lat: s.lat, lng: s.lng, fields: fields, notes: s.notes, link: s.link
+      });
+    });
+
+    (raw.places || []).forEach(function (p) {
+      items.push({
+        id: p.id, kind: 'place', geo: 'point',
+        title: p.name, subtitle: p.category || null,
+        dates: [p.date], time: p.time, booked: p.booked,
+        lat: p.lat, lng: p.lng,
+        fields: [['Category', p.category], ['Time', p.time]],
+        notes: p.notes, link: p.link
+      });
+    });
+
+    (raw.food || []).forEach(function (f) {
+      items.push({
+        id: f.id, kind: 'food', geo: 'point',
+        title: f.name, subtitle: f.type || null,
+        dates: [f.date], time: f.time, booked: f.booked,
+        lat: f.lat, lng: f.lng,
+        fields: [
+          ['Type', f.type],
+          ['Open', f.openTime],
+          ['Reservation', f.reservation],
+          ['Confidence', f.confidence != null ? f.confidence + ' / 5' : null]
+        ],
+        notes: f.notes, link: f.link
+      });
+    });
+
+    const byId = {};
+    items.forEach(function (i) { byId[i.id] = i; });
+    return { trip: raw.trip, days: days, items: items, byId: byId };
+  }
+
+  function itemsOn(date) {
+    if (date === 'all') return model.items.slice();
+    return model.items.filter(function (i) { return i.dates.indexOf(date) !== -1; });
+  }
+
+  function sortByTime(list) {
+    return list.slice().sort(function (a, b) {
+      const ta = parseHM(a.time), tb = parseHM(b.time);
+      if (ta == null && tb == null) return 0;
+      if (ta == null) return 1;
+      if (tb == null) return -1;
+      return ta - tb;
+    });
+  }
+
+  function typeOf(i) {
+    if (i.kind === 'food') return 'food';
+    if (i.kind === 'place') return 'attraction';
+    return 'other';                       // stays, and the endpoints of legs
+  }
+
+  // Paths always encode time of day: a leg has a mode, not a food/sight type,
+  // and colouring every path slate grey would throw that information away.
+  function legColor(i) { return i.timeIsDefault ? NEUTRAL : timeColor(i.time); }
+
+  function nodeColor(i) {
+    if (colourMode === 'type') return TYPE_COLOR[typeOf(i)];
+    return i.timeIsDefault && i.kind !== 'stay' ? NEUTRAL : timeColor(i.time);
+  }
+
+  // One entry point so the list view always matches what the map draws.
+  function itemColor(i) { return i.geo === 'leg' ? legColor(i) : nodeColor(i); }
+
+  /* ── MAP ───────────────────────────────────────────────────────────────── */
+
+  function initMap() {
+    map = L.map('map', { zoomControl: true, worldCopyJump: false, minZoom: 2 })
+           .setView([16, 107], 5);
+
+    // Plain OpenStreetMap tiles: no account, no API key, no usage token. The
+    // dark look comes from a CSS filter applied to .leaflet-tile-pane only, so
+    // markers and polylines (separate panes) keep their real colours.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+
+    // Custom panes, not z-index on sibling elements: anything outside
+    // .leaflet-map-pane cannot be ordered against Leaflet's own panes.
+    map.createPane('legHalo').style.zIndex = 380;
+    map.createPane('legs').style.zIndex = 390;
+    dayLayer = L.layerGroup().addTo(map);
+
+    // Cluster membership is a function of zoom, so it has to be recomputed on
+    // every zoom change. Never re-fit here: that would fight the user's own
+    // zooming, and fitBounds itself fires zoomend.
+    map.on('zoomend', function () { renderMap(false); });
+  }
+
+  /* ── Clustering ─────────────────────────────────────────────────────────
+     Seeded greedy grouping in screen space: walk the points in order, and for
+     each one not yet taken, absorb every remaining point within CLUSTER_PX of
+     IT. Distances are measured to the seed, never transitively, so a long
+     string of nodes cannot chain into one giant blob — each cluster stays
+     within one radius of its own seed.
+     Only free-standing nodes cluster. Leg endpoints stay put, so a flight or
+     bus line always terminates on a visible node rather than in empty space.
+     ───────────────────────────────────────────────────────────────────────── */
+  function clusterPoints(list) {
+    if (!map || !list.length) return list.map(function (i) { return [i]; });
+
+    let pts;
+    try {
+      pts = list.map(function (i) {
+        const p = map.latLngToContainerPoint([i.lat, i.lng]);
+        return { item: i, x: p.x, y: p.y, taken: false };
+      });
+    } catch (e) {
+      return list.map(function (i) { return [i]; });   // map not sized yet
+    }
+
+    const groups = [];
+    for (let a = 0; a < pts.length; a++) {
+      if (pts[a].taken) continue;
+      pts[a].taken = true;
+      const group = [pts[a].item];
+      for (let b = a + 1; b < pts.length; b++) {
+        if (pts[b].taken) continue;
+        const dx = pts[b].x - pts[a].x, dy = pts[b].y - pts[a].y;
+        if (Math.sqrt(dx * dx + dy * dy) <= CLUSTER_PX) {
+          pts[b].taken = true;
+          group.push(pts[b].item);
+        }
+      }
+      groups.push(group);
+    }
+    return groups;
+  }
+
+  function centroid(items) {
+    let la = 0, ln = 0;
+    items.forEach(function (i) { la += i.lat; ln += i.lng; });
+    return [la / items.length, ln / items.length];
+  }
+
+  // The blend: slice the disc in proportion to what is inside it, so the
+  // dominant colour is literally the dominant share of the ring.
+  function blendStops(items) {
+    const n = items.length;
+    const parts = [];
+
+    if (colourMode === 'type') {
+      const counts = { food: 0, attraction: 0, other: 0 };
+      items.forEach(function (i) { counts[typeOf(i)]++; });
+      TYPE_ORDER.forEach(function (k) {
+        if (counts[k]) parts.push({ color: TYPE_COLOR[k], n: counts[k] });
+      });
+    } else {
+      sortByTime(items).forEach(function (i) {
+        parts.push({ color: nodeColor(i), n: 1 });
+      });
+    }
+    if (!parts.length) return NEUTRAL;
+    if (parts.length === 1) return parts[0].color;
+
+    let acc = 0;
+    const stops = parts.map(function (p) {
+      const from = (acc / n) * 100;
+      acc += p.n;
+      const to = (acc / n) * 100;
+      return p.color + ' ' + from.toFixed(2) + '% ' + to.toFixed(2) + '%';
+    });
+    return 'conic-gradient(from -90deg, ' + stops.join(', ') + ')';
+  }
+
+  function clusterIcon(items) {
+    const d = Math.round(30 + Math.min(14, (items.length - 1) * 3));
+    const fill = blendStops(items);
+    const cls = ['cluster'];
+    if (items.some(function (i) { return i.booked === false; })) cls.push('is-unbooked');
+    if (items.some(function (i) { return i.id === activeId; })) cls.push('is-active');
+
+    return L.divIcon({
+      className: '',
+      iconSize: [d, d + 18], iconAnchor: [d / 2, d / 2],
+      html: '<div class="' + cls.join(' ') + '" style="--d:' + d + 'px">' +
+            '<span class="cluster__ring"></span>' +
+            '<span class="cluster__pie" style="background:' + fill + '"></span>' +
+            '<span class="cluster__n">' + items.length + '</span>' +
+            '</div>'
+    });
+  }
+
+  function addCluster(items) {
+    const c = centroid(items);
+    const names = items.slice(0, 4).map(function (i) { return i.title; });
+    if (items.length > 4) names.push('+ ' + (items.length - 4) + ' more');
+
+    L.marker(c, { icon: clusterIcon(items), riseOnHover: true, zIndexOffset: 400 })
+      .bindTooltip(names.join('<br>'), { className: 'tip', direction: 'top', offset: [0, -14] })
+      .on('click', function () { openCluster(items); })
+      .addTo(dayLayer);
+  }
+
+  // Clicking a cluster zooms far enough to break it apart. When its members sit
+  // on the same coordinates there is no zoom that separates them, so list them
+  // in the panel instead of leaving the click dead.
+  function openCluster(items) {
+    const lats = items.map(function (i) { return i.lat; });
+    const lngs = items.map(function (i) { return i.lng; });
+    const spread = Math.max(Math.max.apply(null, lats) - Math.min.apply(null, lats),
+                            Math.max.apply(null, lngs) - Math.min.apply(null, lngs));
+
+    if (spread > 1e-5 && map.getZoom() < 17) {
+      map.fitBounds(L.latLngBounds(items.map(function (i) { return [i.lat, i.lng]; })),
+                    { padding: [80, 80], maxZoom: 17 });
+    } else {
+      showStack(items);
+    }
+  }
+
+  function nodeIcon(item, kind) {
+    const cls = ['node', 'node--' + kind];
+    if (item.booked === false) cls.push('is-unbooked');
+    if (item.id === activeId) cls.push('is-active');
+    return L.divIcon({
+      className: '',
+      iconSize: [22, 22], iconAnchor: [11, 11],
+      html: '<div class="' + cls.join(' ') + '" style="--c:' + nodeColor(item) + '">' +
+            '<span class="node__ring"></span><span class="node__dot"></span></div>'
+    });
+  }
+
+  function addNode(item, lat, lng, kind, label) {
+    if (lat == null || lng == null) return null;
+    const m = L.marker([lat, lng], { icon: nodeIcon(item, kind), riseOnHover: true })
+               .bindTooltip(label || item.title, { className: 'tip', direction: 'top', offset: [0, -10] })
+               .on('click', function () { select(item.id); });
+    m.addTo(dayLayer);
+    return m;
+  }
+
+  function drawLeg(item) {
+    const a = item.from, b = item.to;
+    if (a.lat == null || b.lat == null) return [];
+    const style = MODES[item.mode] || MODES.other;
+    const pts = greatCircle([a.lat, a.lng], [b.lat, b.lng], item.mode === 'flight' ? 96 : 32);
+    const colour = legColor(item);
+    const bounds = [];
+
+    [-360, 0, 360].forEach(function (off) {
+      const shifted = pts.map(function (p) { return [p[0], p[1] + off]; });
+      if (item.booked === false) {
+        L.polyline(shifted, {
+          pane: 'legHalo', color: '#f2d08a', weight: style.weight + 7,
+          opacity: 0.18, dashArray: '5 7', interactive: false
+        }).addTo(dayLayer);
+      }
+      L.polyline(shifted, {
+        pane: 'legs', color: colour, weight: style.weight, opacity: 0.95,
+        dashArray: style.dash, lineCap: style.cap, interactive: true
+      }).on('click', function () { select(item.id); })
+        .bindTooltip(item.title, { className: 'tip', sticky: true })
+        .addTo(dayLayer);
+    });
+
+    addNode(item, a.lat, a.lng, 'hub', a.name);
+    addNode(item, b.lat, b.lng, 'hub', b.name);
+    // Endpoints only. The arc points are unwrapped past +/-180, so fitting to
+    // them would zoom a Pacific crossing out past the whole world.
+    bounds.push([a.lat, a.lng], [b.lat, b.lng]);
+    return bounds;
+  }
+
+  function renderMap(fit) {
+    if (!map) return;
+    dayLayer.clearLayers();
+    const list = itemsOn(selectedDate);
+    const bounds = [];
+
+    // Legs first: their endpoints are drawn as hubs and never clustered.
+    const points = [];
+    list.forEach(function (i) {
+      if (i.geo === 'leg') {
+        drawLeg(i).forEach(function (p) { bounds.push(p); });
+      } else if (i.lat != null && i.lng != null) {
+        points.push(i);
+        bounds.push([i.lat, i.lng]);
+      }
+    });
+
+    clusterPoints(points).forEach(function (group) {
+      if (group.length === 1) addNode(group[0], group[0].lat, group[0].lng, group[0].kind);
+      else addCluster(group);
+    });
+
+    if (fit && bounds.length) {
+      map.fitBounds(L.latLngBounds(bounds), { padding: [70, 70], maxZoom: 12, animate: false });
+    }
+    map.invalidateSize();
+  }
+
+  /* ── DETAIL PANEL ──────────────────────────────────────────────────────── */
+
+  function select(id) {
+    activeId = id;
+    stackIds = null;
+    renderDetail();
+    renderMap(false);
+    const i = model.byId[id];
+    if (i && view === 'map' && map) {
+      if (i.geo === 'point' && i.lat != null) map.panTo([i.lat, i.lng]);
+    }
+  }
+
+  // A cluster whose members share one coordinate: list them so the click still
+  // leads somewhere.
+  function showStack(items) {
+    stackIds = items.map(function (i) { return i.id; });
+    activeId = null;
+
+    const rows = sortByTime(items).map(function (i) {
+      return '<li><button class="item" data-id="' + esc(i.id) + '">' +
+          '<span class="item__time">' + esc(i.time && !i.timeIsDefault ? i.time : '') + '</span>' +
+          '<span class="item__mark' + (i.booked === false ? ' is-unbooked' : '') +
+            '" style="--c:' + itemColor(i) + '"></span>' +
+          '<span><span class="item__title">' + esc(i.title) + '</span>' +
+            '<br><span class="item__sub">' + esc(TYPE_LABEL[typeOf(i)]) + '</span>' +
+          '</span></button></li>';
+    }).join('');
+
+    el.detailBody.innerHTML =
+      '<div class="detail__kind">' + items.length + ' AT THIS SPOT</div>' +
+      '<h2 class="detail__title">Stacked here</h2>' +
+      '<p style="margin:0 0 10px;font-size:13px;color:var(--muted)">' +
+        'These share the same coordinates, so zooming will not separate them. ' +
+        'Pick one for its details.</p>' +
+      '<ul class="items" style="padding:0">' + rows + '</ul>';
+
+    el.detail.classList.add('is-open');
+    renderMap(false);
+  }
+
+  function renderDetail() {
+    const i = model.byId[activeId];
+    if (!i) { el.detail.classList.remove('is-open'); return; }
+
+    const rows = i.fields.filter(function (f) { return f[1] != null && f[1] !== ''; })
+      .map(function (f) { return '<dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd>'; }).join('');
+
+    const when = i.dates.filter(Boolean).map(fmtDate).join(' → ');
+    const chip = i.booked === false
+      ? '<span class="chip chip--unbooked">Not booked</span>'
+      : (i.booked === true ? '<span class="chip chip--booked">Booked</span>' : '');
+
+    el.detailBody.innerHTML =
+      '<div class="detail__kind">' + esc(KIND_LABEL[i.kind] || i.kind) + '</div>' +
+      '<h2 class="detail__title">' + esc(i.title) + '</h2>' +
+      '<p style="margin:0 0 10px;font-size:13px;color:var(--muted)">' +
+        '<span class="swatch" style="background:' + itemColor(i) + '"></span>' + esc(when) +
+        (i.time ? ' · ' + esc(i.time) : '') + '</p>' +
+      (chip ? '<p style="margin:0 0 12px">' + chip + '</p>' : '') +
+      (rows ? '<dl class="detail__meta">' + rows + '</dl>' : '') +
+      (i.link ? '<p style="margin:0 0 12px"><a href="' + esc(i.link) + '" target="_blank" rel="noopener">Open link</a></p>' : '') +
+      (i.notes ? '<div class="detail__notes">' + esc(i.notes) + '</div>' : '');
+
+    el.detail.classList.add('is-open');
+  }
+
+  /* ── DAY RAIL ──────────────────────────────────────────────────────────── */
+
+  function dayHasUnbooked(date) {
+    return itemsOn(date).some(function (i) { return i.booked === false; });
+  }
+
+  function renderRail() {
+    const parts = ['<button class="day day--all" data-date="all" aria-pressed="' +
+      (selectedDate === 'all') + '"><span class="day__n">WHOLE</span>' +
+      '<span class="day__date">Trip</span></button>'];
+
+    model.days.forEach(function (d) {
+      parts.push(
+        '<button class="day" data-date="' + d.date + '" aria-pressed="' + (selectedDate === d.date) + '">' +
+          '<span class="day__n">DAY ' + d.n + (dayHasUnbooked(d.date) ? '<span class="day__mark"></span>' : '') + '</span>' +
+          '<span class="day__date">' + esc(fmtDate(d.date)) + '</span>' +
+          '<span class="day__sleep">' + esc(d.sleeping || d.base || '') + '</span>' +
+        '</button>');
+    });
+    el.railTrack.innerHTML = parts.join('');
+
+    const i = currentIndex();
+    el.railPrev.disabled = i <= 0;
+    el.railNext.disabled = i >= model.days.length - 1;
+
+    // Do NOT use scrollIntoView here: it scrolls every scrollable ancestor,
+    // including the document, which drags the whole page sideways once the
+    // selected day is near the end of the rail. Move only the rail.
+    const active = el.railTrack.querySelector('[aria-pressed="true"]');
+    if (active) {
+      const left = active.offsetLeft - (el.railTrack.clientWidth - active.offsetWidth) / 2;
+      const max = el.railTrack.scrollWidth - el.railTrack.clientWidth;
+      el.railTrack.scrollLeft = Math.max(0, Math.min(max, left));
+    }
+  }
+
+  function currentIndex() {
+    if (selectedDate === 'all') return -1;
+    return model.days.findIndex(function (d) { return d.date === selectedDate; });
+  }
+
+  function setDay(date) {
+    selectedDate = date;
+    activeId = null;
+    stackIds = null;
+    el.detail.classList.remove('is-open');
+    renderRail();
+    renderMap(true);
+    if (view === 'list') scrollListToDay(date);
+  }
+
+  function stepDay(delta) {
+    const i = currentIndex();
+    const next = i === -1 ? 0 : i + delta;
+    if (next < 0 || next >= model.days.length) return;
+    setDay(model.days[next].date);
+  }
+
+  /* ── LIST VIEW ─────────────────────────────────────────────────────────── */
+
+  function renderList() {
+    const blocks = model.days.map(function (d) {
+      const list = sortByTime(itemsOn(d.date));
+      const rows = list.length ? list.map(function (i) {
+        const sub = [i.subtitle, i.kind === 'stay' ? 'overnight' : null]
+                      .filter(Boolean).join(' · ');
+        return '<li><button class="item" data-id="' + esc(i.id) + '">' +
+            '<span class="item__time">' + esc(i.time && !i.timeIsDefault ? i.time : '') + '</span>' +
+            '<span class="item__mark' + (i.booked === false ? ' is-unbooked' : '') +
+              '" style="--c:' + itemColor(i) + '"></span>' +
+            '<span><span class="item__title">' + esc(i.title) + '</span>' +
+              (sub ? '<br><span class="item__sub">' + esc(sub) + '</span>' : '') +
+            '</span></button></li>';
+      }).join('') : '<li class="empty">Nothing on this day yet.</li>';
+
+      return '<article class="dayblock" id="d-' + d.date + '">' +
+        '<header class="dayblock__head">' +
+          '<span class="dayblock__n">DAY ' + d.n + '</span>' +
+          '<span class="dayblock__date">' + esc(fmtDate(d.date)) + '</span>' +
+          (d.sleeping ? '<span class="dayblock__sleep">Sleeping: ' + esc(d.sleeping) + '</span>' : '') +
+          (d.summary ? '<span class="dayblock__sleep">' + esc(d.summary) + '</span>' : '') +
+        '</header>' +
+        '<ul class="items">' + rows + '</ul></article>';
+    }).join('');
+
+    const nUnbooked = model.items.filter(function (i) { return i.booked === false; }).length;
+    const intro = '<p class="list__intro">' + model.items.length + ' entries, ' +
+      nUnbooked + ' still to book. Pick anything to see it on the map.</p>';
+
+    el.list.innerHTML = intro + blocks;
+  }
+
+  function scrollListToDay(date) {
+    if (date === 'all') { el.list.scrollTop = 0; return; }
+    const target = $('d-' + date);
+    if (target) el.list.scrollTop = target.offsetTop - 4;
+  }
+
+  /* ── VIEW SWITCH ───────────────────────────────────────────────────────── */
+
+  function setView(v) {
+    view = v;
+    const isMap = v === 'map';
+    el.tabMap.setAttribute('aria-selected', String(isMap));
+    el.tabList.setAttribute('aria-selected', String(!isMap));
+    el.map.classList.toggle('is-hidden', !isMap);
+    el.list.classList.toggle('is-visible', !isMap);
+    el.legend.classList.toggle('is-off', !isMap);
+    if (isMap && map) { map.invalidateSize(); }
+    else { scrollListToDay(selectedDate); }
+  }
+
+  /* ── CHROME ────────────────────────────────────────────────────────────── */
+
+  function renderChrome() {
+    el.tripName.textContent = model.trip.name || 'Trip';
+    el.tripDates.textContent = fmtDate(model.trip.startDate) + ' – ' + fmtDate(model.trip.endDate);
+    document.title = (model.trip.name || 'Trip') + ' — Trip Planner';
+
+    const n = model.items.filter(function (i) { return i.booked === false; }).length;
+    el.unbookedFlag.hidden = n === 0;
+    el.unbookedFlag.textContent = n + (n === 1 ? ' thing to book' : ' things to book');
+
+    renderLegendKey();
+
+    el.legendModes.innerHTML = LEGEND_MODES.map(function (m) {
+      const s = MODES[m];
+      return '<svg width="42" height="8" aria-hidden="true"><line x1="1" y1="4" x2="41" y2="4" ' +
+             'stroke="#9fb3c0" stroke-width="' + s.weight + '" stroke-linecap="' + s.cap +
+             '" stroke-dasharray="' + s.dash + '"/></svg><span>' + s.label + '</span>';
+    }).join('');
+  }
+
+  function renderLegendKey() {
+    if (colourMode === 'type') {
+      el.legendKey.innerHTML =
+        '<div class="legend__types">' +
+        TYPE_ORDER.map(function (k) {
+          return '<i style="background:' + TYPE_COLOR[k] + '"></i><span>' +
+                 esc(TYPE_LABEL[k]) + '</span>';
+        }).join('') +
+        '</div><div class="legend__note">Paths stay coloured by time of day.</div>';
+    } else {
+      el.legendKey.innerHTML =
+        '<div>Colour is time of day</div>' +
+        '<div class="legend__ramp"></div>' +
+        '<div class="legend__scale"><span>00</span><span>06</span><span>12</span>' +
+        '<span>18</span><span>24</span></div>';
+    }
+    el.modeType.setAttribute('aria-pressed', String(colourMode === 'type'));
+    el.modeTime.setAttribute('aria-pressed', String(colourMode === 'time'));
+  }
+
+  function setColourMode(mode) {
+    if (mode === colourMode) return;
+    colourMode = mode;
+    renderLegendKey();
+    renderMap(false);
+    renderList();
+    if (activeId) renderDetail();
+  }
+
+  /* ── EVENTS ────────────────────────────────────────────────────────────── */
+
+  function wire() {
+    el.railTrack.addEventListener('click', function (e) {
+      const b = e.target.closest('[data-date]');
+      if (b) setDay(b.dataset.date);
+    });
+    el.railPrev.addEventListener('click', function () { stepDay(-1); });
+    el.railNext.addEventListener('click', function () { stepDay(1); });
+
+    el.tabMap.addEventListener('click', function () { setView('map'); });
+    el.tabList.addEventListener('click', function () { setView('list'); });
+
+    el.list.addEventListener('click', function (e) {
+      const b = e.target.closest('[data-id]');
+      if (!b) return;
+      setView('map');
+      const i = model.byId[b.dataset.id];
+      if (i && i.dates[0]) { selectedDate = i.dates[0]; renderRail(); renderMap(true); }
+      select(b.dataset.id);
+    });
+
+    el.detailBody.addEventListener('click', function (e) {
+      const b = e.target.closest('[data-id]');
+      if (b) select(b.dataset.id);
+    });
+
+    el.detailClose.addEventListener('click', function () {
+      activeId = null;
+      stackIds = null;
+      el.detail.classList.remove('is-open');
+      renderMap(false);
+    });
+
+    el.modeType.addEventListener('click', function () { setColourMode('type'); });
+    el.modeTime.addEventListener('click', function () { setColourMode('time'); });
+
+    el.legendToggle.addEventListener('click', function () {
+      const c = el.legend.classList.toggle('is-collapsed');
+      el.legendToggle.innerHTML = c ? '+' : '&minus;';
+    });
+
+    document.addEventListener('keydown', function (e) {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (e.key === 'ArrowLeft') { stepDay(-1); }
+      else if (e.key === 'ArrowRight') { stepDay(1); }
+      else if (e.key === 'Escape') {
+        activeId = null; stackIds = null;
+        el.detail.classList.remove('is-open'); renderMap(false);
+      }
+    });
+  }
+
+  function cacheDom() {
+    ['tripName', 'tripDates', 'unbookedFlag', 'tabMap', 'tabList', 'railTrack',
+     'railPrev', 'railNext', 'map', 'list', 'detail', 'detailBody', 'detailClose',
+     'legend', 'legendToggle', 'legendModes', 'legendKey',
+     'modeType', 'modeTime'].forEach(function (k) { el[k] = $(k); });
+  }
+
+  /* ── BOOT ──────────────────────────────────────────────────────────────── */
+
+  async function boot() {
+    cacheDom();
+    try {
+      const raw = await loadRaw();
+      model = buildModel(raw);
+    } catch (err) {
+      bootError = err;
+      el.list.innerHTML = '<p class="list__intro">Could not load the trip data.<br>' +
+        esc(err && err.message ? err.message : String(err)) +
+        '<br><br>If the Netlify function is live, open its URL directly in a tab — ' +
+        'a stale deploy and a data problem look identical from here.</p>';
+      el.list.classList.add('is-visible');
+      el.map.style.display = 'none';
+      return;
+    }
+    renderChrome();
+    initMap();
+    renderRail();
+    renderList();
+    renderMap(true);
+    wire();
+    setDay(model.days.length ? model.days[0].date : 'all');
+    setView('map');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>
