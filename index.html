@@ -122,7 +122,7 @@ a{color:var(--focus);text-underline-offset:2px}
 .leaflet-container{background:#0e161c;font-family:var(--font)}
 /* Dark basemap without a tile-provider account. Scoped to the tile pane so it
    never touches markers, paths or controls. */
-.leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) brightness(.93) contrast(.86) saturate(.7)}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) brightness(.72) contrast(.78) saturate(.45)}
 .leaflet-control-attribution{background:rgba(20,29,37,.8)!important;color:var(--muted-2)!important;font-size:10px}
 .leaflet-control-attribution a{color:var(--muted)!important}
 .leaflet-bar a{background:var(--panel);color:var(--paper);border-color:var(--rule)}
@@ -131,14 +131,17 @@ a{color:var(--focus);text-underline-offset:2px}
 /* ── Map nodes ─────────────────────────────────────────────────────────── */
 .node{position:relative;width:22px;height:22px}
 .node__dot{
-  position:absolute;inset:5px;background:var(--c,#888);
-  border:1.5px solid rgba(255,255,255,.85);
-  box-shadow:0 0 0 1px rgba(0,0,0,.5), 0 0 10px -1px var(--c,#888);
+  position:absolute;inset:4px;background:var(--c,#888);
+  border:2px solid #fff;
+  /* Dark ring outside the white one: together they guarantee contrast on any
+     basemap colour, which a glow alone does not. */
+  box-shadow:0 0 0 1.5px rgba(6,11,15,.9), 0 1px 7px 0 rgba(0,0,0,.65),
+             0 0 11px -2px var(--c,#888);
 }
 .node--place .node__dot,.node--food .node__dot{border-radius:50%}
 .node--stay .node__dot{border-radius:2px}
-.node--hub .node__dot{border-radius:2px;transform:rotate(45deg);inset:4px}
-.node--waypoint .node__dot{inset:7px;border-radius:50%;border-width:1px}
+.node--hub .node__dot{border-radius:2px;transform:rotate(45deg);inset:3px}
+.node--waypoint .node__dot{inset:6px;border-radius:50%;border-width:1.5px}
 .node__ring{
   position:absolute;inset:0;border-radius:50%;
   border:1.5px dashed var(--warn);opacity:0;
@@ -157,8 +160,8 @@ a{color:var(--focus);text-underline-offset:2px}
 .cluster{position:relative;width:var(--d);height:var(--d);cursor:pointer}
 .cluster__pie{
   position:absolute;inset:0;border-radius:50%;
-  border:1.5px solid rgba(255,255,255,.85);
-  box-shadow:0 0 0 1px rgba(0,0,0,.55), 0 2px 10px -2px rgba(0,0,0,.6);
+  border:2px solid #fff;
+  box-shadow:0 0 0 1.5px rgba(6,11,15,.9), 0 2px 12px -2px rgba(0,0,0,.75);
 }
 .cluster__ring{
   position:absolute;inset:-4px;border-radius:50%;
@@ -368,17 +371,17 @@ window.SAMPLE = {
 
     { id:"F2", airline:null, flightNo:null, from:"SGN", to:"HAN",
       date:"2026-11-15", depLocal:"08:00", arrLocal:"10:10", durationMin:130,
-      price:118, booked:false, link:null,
+      price:118, booked:true, link:null,
       notes:"$118 total for both. Morning flight — moved from the evening slot in the earlier version of the schedule." },
 
     { id:"F3", airline:null, flightNo:null, from:"HAN", to:"DAD",
       date:"2026-11-22", depLocal:"11:15", arrLocal:"12:40", durationMin:85,
-      price:null, booked:false, link:null,
+      price:null, booked:true, link:null,
       notes:"Schedule tab puts this on 22 Nov; the to-book list says 23 Nov. Schedule tab used." },
 
     { id:"F4", airline:null, flightNo:null, from:"DAD", to:"SGN",
       date:"2026-11-25", depLocal:"12:10", arrLocal:"13:45", durationMin:95,
-      price:null, booked:false, link:null, notes:null },
+      price:null, booked:true, link:null, notes:null },
 
     { id:"F5", airline:null, flightNo:null, from:"SGN", to:"SFO",
       date:"2026-11-26", depLocal:"18:40", arrLocal:"17:00", durationMin:null,
@@ -389,11 +392,11 @@ window.SAMPLE = {
   stays: [
     { id:"S1", name:"Ho Chi Minh Airbnb", location:"Ho Chi Minh City",
       lat:10.7769, lng:106.7009, checkIn:"2026-11-13", checkOut:"2026-11-15",
-      price:null, link:null, booked:false, notes:"2 nights. Coordinates are a city-centre placeholder." },
+      price:null, link:null, booked:true, notes:"2 nights. Coordinates are a city-centre placeholder." },
 
     { id:"S2", name:"Hanoi hotel", location:"Hanoi (Old Quarter)",
       lat:21.0338, lng:105.8500, checkIn:"2026-11-15", checkOut:"2026-11-16",
-      price:null, link:null, booked:false, notes:"1 night. Arriving late morning off the 10:10 flight." },
+      price:null, link:null, booked:true, notes:"1 night. Arriving late morning off the 10:10 flight." },
 
     { id:"S3", name:"Dong Van homestay", location:"Dong Van",
       lat:23.2764, lng:105.3636, checkIn:"2026-11-17", checkOut:"2026-11-19",
@@ -405,81 +408,81 @@ window.SAMPLE = {
 
     { id:"S5", name:"Ninh Binh Airbnb", location:"Tam Coc, Ninh Binh",
       lat:20.2244, lng:105.9167, checkIn:"2026-11-21", checkOut:"2026-11-22",
-      price:null, link:null, booked:false,
+      price:null, link:null, booked:true,
       notes:"1 night on the Schedule tab; the to-book list says 2 nights. Schedule tab used — worth confirming." },
 
     { id:"S6", name:"Hoi An Airbnb", location:"Hoi An Ancient Town",
       lat:15.8801, lng:108.3380, checkIn:"2026-11-22", checkOut:"2026-11-25",
-      price:null, link:null, booked:false,
+      price:null, link:null, booked:true,
       notes:"3 nights on the Schedule tab; the to-book list says 2 nights. Schedule tab used — worth confirming." },
 
     { id:"S7", name:"Ho Chi Minh Airbnb (last night)", location:"Ho Chi Minh City",
       lat:10.7769, lng:106.7009, checkIn:"2026-11-25", checkOut:"2026-11-26",
-      price:null, link:null, booked:false, notes:"1 night before the flight home." }
+      price:null, link:null, booked:true, notes:"1 night before the flight home." }
   ],
 
   places: [
-    { id:"P01", name:"Tao Đàn Park", lat:10.7760, lng:106.6920, date:"2026-11-13", time:"07:45", category:"Nature",   link:null, booked:null, notes:"Somewhere to sit and eat the banh mi." },
-    { id:"P02", name:"Walk around Phú Nhuận", lat:10.7955, lng:106.6790, date:"2026-11-13", time:"09:00", category:"Other", link:null, booked:null, notes:"Route: Đặng Văn Ngữ → Nguyễn Đình Chiểu → Phan Đăng Lưu." },
-    { id:"P03", name:"Walk around District 3", lat:10.7830, lng:106.6890, date:"2026-11-13", time:"15:30", category:"Other", link:null, booked:null, notes:"Tree-lined streets, older architecture and local cafés. Route: Võ Thị Sáu → Nguyễn Đình Chiểu → Nam Kỳ Khởi Nghĩa → Hồ Xuân Hương → Turtle Lake." },
-    { id:"P04", name:"War Remnants Museum", lat:10.7797, lng:106.6922, date:"2026-11-13", time:"16:15", category:"Museum", link:null, booked:null, notes:"Check closing time before going — it shuts in the late afternoon." },
-    { id:"P05", name:"The Cafe Apartments", lat:10.7745, lng:106.7040, date:"2026-11-13", time:"17:45", category:"Shopping", link:null, booked:null, notes:"A historic nine-story residential block converted into a vertical maze of independent coffee shops, boutiques and creative studios." },
-    { id:"P06", name:"District 1 evening walk", lat:10.7740, lng:106.7020, date:"2026-11-13", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Nguyễn Huệ → Đồng Khởi → Tôn Thất Thiệp." },
-    { id:"P07", name:"Walk around Chợ Lớn / District 5", lat:10.7530, lng:106.6580, date:"2026-11-14", time:"09:30", category:"Other", link:null, booked:null, notes:"Saigon's historic Chinese quarter." },
-    { id:"P08", name:"Bình Tây Market", lat:10.7500, lng:106.6500, date:"2026-11-14", time:"10:45", category:"Shopping", link:null, booked:null, notes:"Don't spend hours inside the market itself. The fun part is actually walking around the neighbourhood surrounding it." },
+    { id:"P01", name:"Tao Đàn Park", lat:10.7755796, lng:106.6920797, date:"2026-11-13", time:"07:45", category:"Nature",   link:null, booked:null, notes:"Somewhere to sit and eat the banh mi." },
+    { id:"P02", name:"Walk around Phú Nhuận", route:"10.79444,106.66936; 10.7930,106.6730; 10.7950,106.6775; 10.7975,106.6800", lat:10.7944422, lng:106.6693599, date:"2026-11-13", time:"09:00", category:"Other", link:null, booked:null, notes:"Route: Đặng Văn Ngữ → Nguyễn Đình Chiểu → Phan Đăng Lưu." },
+    { id:"P03", name:"Walk around District 3", route:"10.7866,106.6880; 10.7840,106.6905; 10.7828,106.6935; 10.78266,106.69592; 10.7845,106.6978", lat:10.7866, lng:106.688, date:"2026-11-13", time:"15:30", category:"Other", link:null, booked:null, notes:"Tree-lined streets, older architecture and local cafés. Route: Võ Thị Sáu → Nguyễn Đình Chiểu → Nam Kỳ Khởi Nghĩa → Hồ Xuân Hương → Turtle Lake." },
+    { id:"P04", name:"War Remnants Museum", lat:10.7795106, lng:106.6920916, date:"2026-11-13", time:"16:15", category:"Museum", link:null, booked:null, notes:"Check closing time before going — it shuts in the late afternoon." },
+    { id:"P05", name:"The Cafe Apartments", lat:10.7740888, lng:106.7040596, date:"2026-11-13", time:"17:45", category:"Shopping", link:null, booked:null, notes:"A historic nine-story residential block converted into a vertical maze of independent coffee shops, boutiques and creative studios." },
+    { id:"P06", name:"District 1 evening walk", route:"10.77409,106.70406; 10.7760,106.7035; 10.7745,106.7020; 10.7768,106.7045; 10.7780,106.7030", lat:10.7740888, lng:106.7040596, date:"2026-11-13", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Nguyễn Huệ → Đồng Khởi → Tôn Thất Thiệp." },
+    { id:"P07", name:"Walk around Chợ Lớn / District 5", lat:10.7535, lng:106.6585, date:"2026-11-14", time:"09:30", category:"Other", link:null, booked:null, notes:"Saigon's historic Chinese quarter." },
+    { id:"P08", name:"Bình Tây Market", lat:10.7493638, lng:106.6510455, date:"2026-11-14", time:"10:45", category:"Shopping", link:null, booked:null, notes:"Don't spend hours inside the market itself. The fun part is actually walking around the neighbourhood surrounding it." },
     { id:"P09", name:"Saigon Michelin-rated street food tour", lat:10.7720, lng:106.6980, date:"2026-11-14", time:"15:00", category:"Food tour", link:"https://www.getyourguide.com/ho-chi-minh-city-l272/saigon-michelin-rated-street-food-tour-with-female-rider-t1262941/", booked:false, notes:"On the to-book list. Time is a guess — set it once you book a slot." },
-    { id:"P10", name:"Explore the quieter side of District 1", lat:10.7690, lng:106.6965, date:"2026-11-14", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Đề Thám → Nguyễn Thái Bình → Tôn Thất Đạm → Hồ Tùng Mậu → Nguyễn Huệ. Avoid Bùi Viện." },
-    { id:"P11", name:"Walk the French Quarter and Old Quarter", lat:21.0300, lng:105.8530, date:"2026-11-15", time:"14:00", category:"Other", link:null, booked:null, notes:"First afternoon in Hanoi, straight off the morning flight." },
-    { id:"P12", name:"Bat Trang Pottery Museum", lat:20.9780, lng:105.9130, date:"2026-11-16", time:"09:30", category:"Museum", link:null, booked:null, notes:"Amazing architecture. Out in Bat Trang village, roughly 30–40 min from the Old Quarter — check the travel time against the bus pickup that evening." },
+    { id:"P10", name:"Explore the quieter side of District 1", route:"10.76528,106.69464; 10.7675,106.6975; 10.7700,106.7005; 10.7720,106.7025; 10.7745,106.7020", lat:10.7652819, lng:106.694635, date:"2026-11-14", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Đề Thám → Nguyễn Thái Bình → Tôn Thất Đạm → Hồ Tùng Mậu → Nguyễn Huệ. Avoid Bùi Viện." },
+    { id:"P11", name:"Walk the French Quarter and Old Quarter", route:"21.02867,105.85215; 21.0310,105.8530; 21.0335,105.8505; 21.0310,105.8480; 21.0270,105.8490", lat:21.0286669, lng:105.8521484, date:"2026-11-15", time:"14:00", category:"Other", link:null, booked:null, notes:"First afternoon in Hanoi, straight off the morning flight." },
+    { id:"P12", name:"Bat Trang Pottery Museum", lat:20.9730338, lng:105.9162085, date:"2026-11-16", time:"09:30", category:"Museum", link:null, booked:null, notes:"Amazing architecture. Out in Bat Trang village, roughly 30–40 min from the Old Quarter — check the travel time against the bus pickup that evening." },
     { id:"P13", name:"Tony Eats Hanoi street food tour", lat:21.0345, lng:105.8510, date:"2026-11-16", time:"12:00", category:"Food tour", link:"https://www.viator.com/tours/Hanoi/Taste-Hanois-Street-Food-Small-Group-Vegan-Friendly-Tour/d351-5538064P2", booked:false, notes:"$35. WhatsApp +84 96 357 21 59. On the to-book list. Placed on 16 Nov rather than 15 Nov — landing at 10:10 leaves little slack for a midday start the same day." },
-    { id:"P14", name:"Hang Mua", lat:20.2345, lng:105.9360, date:"2026-11-21", time:"07:00", category:"Nature", link:null, booked:null, notes:"20 min uphill walk. Go early to beat the crowds and the heat." },
-    { id:"P15", name:"Hang Mua lotus field", lat:20.2340, lng:105.9355, date:"2026-11-21", time:"08:15", category:"Nature", link:null, booked:null, notes:"Walk through it on the way down." },
-    { id:"P16", name:"Bich Dong Pagoda", lat:20.2139, lng:105.9353, date:"2026-11-21", time:"09:30", category:"Sight", link:null, booked:null, notes:"Pagoda built into a cave. 1–2 h walk." },
+    { id:"P14", name:"Hang Mua", lat:20.232092, lng:105.9405632, date:"2026-11-21", time:"07:00", category:"Nature", link:null, booked:null, notes:"20 min uphill walk. Go early to beat the crowds and the heat." },
+    { id:"P15", name:"Hang Mua lotus field", lat:20.2315, lng:105.9398, date:"2026-11-21", time:"08:15", category:"Nature", link:null, booked:null, notes:"Walk through it on the way down." },
+    { id:"P16", name:"Bich Dong Pagoda", lat:20.2175782, lng:105.9156582, date:"2026-11-21", time:"09:30", category:"Sight", link:null, booked:null, notes:"Pagoda built into a cave. 1–2 h walk." },
     { id:"P17", name:"Buffalo Cave", lat:20.2200, lng:105.9300, date:"2026-11-21", time:"11:15", category:"Nature", link:null, booked:null, notes:"Spreadsheet records \"3.0\" against this one — carried over as written, meaning unclear." },
-    { id:"P18", name:"Trang An boat tour", lat:20.2506, lng:105.8953, date:"2026-11-21", time:"15:00", category:"Activity", link:null, booked:null, notes:"3 h. Go with Trang An, take route 3. No need to book in advance. 300k VND." },
+    { id:"P18", name:"Trang An boat tour", lat:20.2527855, lng:105.918304, date:"2026-11-21", time:"15:00", category:"Activity", link:null, booked:null, notes:"3 h. Go with Trang An, take route 3. No need to book in advance. 300k VND." },
     { id:"P19", name:"Lantern making class", lat:15.8795, lng:108.3285, date:"2026-11-23", time:"10:00", category:"Activity", link:null, booked:false, notes:"Book via KLOOK. Time is a guess — set it once booked." },
     { id:"P20", name:"Boat ride and lantern release", lat:15.8770, lng:108.3300, date:"2026-11-23", time:"17:00", category:"Activity", link:null, booked:false, notes:"Book via KLOOK. 5pm as stated." },
-    { id:"P21", name:"Explore the Ancient Town", lat:15.8790, lng:108.3280, date:"2026-11-23", time:"19:30", category:"Other", link:null, booked:null, notes:"Dinner and a wander after the lantern release." },
-    { id:"P22", name:"Bike or walk around the old town", lat:15.8790, lng:108.3280, date:"2026-11-24", time:"08:30", category:"Other", link:null, booked:null, notes:null },
+    { id:"P21", name:"Explore the Ancient Town", route:"15.87709,108.32607; 15.8762,108.3300; 15.87673,108.33277; 15.8755,108.3330", lat:15.8770873, lng:108.3260704, date:"2026-11-23", time:"19:30", category:"Other", link:null, booked:null, notes:"Dinner and a wander after the lantern release." },
+    { id:"P22", name:"Bike or walk around the old town", route:"15.87709,108.32607; 15.87813,108.32716; 15.87648,108.32777; 15.87729,108.32955; 15.87714,108.33426", lat:15.8770873, lng:108.3260704, date:"2026-11-24", time:"08:30", category:"Other", link:null, booked:null, notes:null },
     { id:"P23", name:"Cooking class", lat:15.8800, lng:108.3300, date:"2026-11-24", time:"10:00", category:"Activity", link:null, booked:false, notes:"2 h, 10am as stated. Book via KLOOK." },
-    { id:"P24", name:"Museum of Trade Ceramics", lat:15.8780, lng:108.3272, date:"2026-11-24", time:"14:00", category:"Museum", link:null, booked:null, notes:"120,000 VND / about $5." },
-    { id:"P25", name:"Precious Heritage Museum", lat:15.8783, lng:108.3255, date:"2026-11-24", time:"14:45", category:"Museum", link:null, booked:null, notes:"Free entrance." },
-    { id:"P26", name:"An Bang Beach", lat:15.9115, lng:108.3400, date:"2026-11-24", time:"15:30", category:"Nature", link:null, booked:null, notes:"15–20 min from Hoi An." },
-    { id:"P27", name:"Hoi An Lune Center bamboo circus", lat:15.8820, lng:108.3350, date:"2026-11-24", time:"18:00", category:"Activity", link:null, booked:false, notes:"Hypnotic, daring acrobatic spectacle. $27 USD. 6PM as stated." },
-    { id:"P28", name:"Japanese Covered Bridge", lat:15.8771, lng:108.3262, date:"2026-11-25", time:"08:00", category:"Sight", link:null, booked:null, notes:"Early start to avoid the crowds." },
-    { id:"P29", name:"Ba Mu Temple Gate", lat:15.8800, lng:108.3290, date:"2026-11-25", time:"08:20", category:"Sight", link:null, booked:null, notes:null },
+    { id:"P24", name:"Museum of Trade Ceramics", lat:15.8772894, lng:108.3295509, date:"2026-11-24", time:"14:00", category:"Museum", link:null, booked:null, notes:"120,000 VND / about $5." },
+    { id:"P25", name:"Precious Heritage Museum", lat:15.8771398, lng:108.3342634, date:"2026-11-24", time:"14:45", category:"Museum", link:null, booked:null, notes:"Free entrance." },
+    { id:"P26", name:"An Bang Beach", lat:15.9136072, lng:108.3406489, date:"2026-11-24", time:"15:30", category:"Nature", link:null, booked:null, notes:"15–20 min from Hoi An." },
+    { id:"P27", name:"Hoi An Lune Center bamboo circus", lat:15.8750879, lng:108.3289792, date:"2026-11-24", time:"18:00", category:"Activity", link:null, booked:false, notes:"Hypnotic, daring acrobatic spectacle. $27 USD. 6PM as stated." },
+    { id:"P28", name:"Japanese Covered Bridge", lat:15.8770873, lng:108.3260704, date:"2026-11-25", time:"08:00", category:"Sight", link:null, booked:null, notes:"Early start to avoid the crowds." },
+    { id:"P29", name:"Ba Mu Temple Gate", lat:15.8781334, lng:108.3271569, date:"2026-11-25", time:"08:20", category:"Sight", link:null, booked:null, notes:null },
     { id:"P30", name:"Phap Bao Pagoda", lat:15.8810, lng:108.3270, date:"2026-11-25", time:"08:40", category:"Sight", link:null, booked:null, notes:null },
-    { id:"P31", name:"Confucius Temple", lat:15.8818, lng:108.3265, date:"2026-11-25", time:"09:00", category:"Sight", link:null, booked:null, notes:null },
-    { id:"P32", name:"Ancient House", lat:15.8785, lng:108.3285, date:"2026-11-25", time:"09:20", category:"Sight", link:null, booked:null, notes:null },
-    { id:"P33", name:"Marble Mountains", lat:16.0034, lng:108.2630, date:"2026-11-25", time:"08:00", category:"Nature", link:null, booked:null, notes:"Caves and viewpoints, a lot of stairs. Sits roughly on the Hoi An → airport route. Clashes with the Hoi An temple run the same morning — pick one." }
+    { id:"P31", name:"Confucius Temple", lat:15.8798623, lng:108.3229872, date:"2026-11-25", time:"09:00", category:"Sight", link:null, booked:null, notes:null },
+    { id:"P32", name:"Ancient House", lat:15.8764821, lng:108.3277659, date:"2026-11-25", time:"09:20", category:"Sight", link:null, booked:null, notes:null },
+    { id:"P33", name:"Marble Mountains", lat:16.0037104, lng:108.2631605, date:"2026-11-25", time:"08:00", category:"Nature", link:null, booked:null, notes:"Caves and viewpoints, a lot of stairs. Sits roughly on the Hoi An → airport route. Clashes with the Hoi An temple run the same morning — pick one." }
   ],
 
   food: [
-    { id:"E01", name:"Banh Mi Hong Hoa", lat:10.7708, lng:106.6930, type:"Street stall", date:"2026-11-13", time:"07:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Breakfast, first morning." },
+    { id:"E01", name:"Banh Mi Hong Hoa", lat:10.7715226, lng:106.6923968, type:"Street stall", date:"2026-11-13", time:"07:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Breakfast, first morning." },
     { id:"E02", name:"Vietnamese coffee", lat:10.7780, lng:106.6950, type:"Cafe", date:"2026-11-13", time:"10:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"No specific place named in the spreadsheet — pick one on the day." },
-    { id:"E03", name:"Cơm Tấm Ba Ghiền", lat:10.7940, lng:106.6800, type:"Restaurant", date:"2026-11-13", time:"12:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Cơm tấm = broken rice, grilled pork, egg, pickles, scallion oil, fish sauce." },
-    { id:"E04", name:"Pho Hoa Pasteur", lat:10.7897, lng:106.6878, type:"Restaurant", date:"2026-11-13", time:"19:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
-    { id:"E05", name:"Bánh Xèo 46A", lat:10.7865, lng:106.6905, type:"Restaurant", date:"2026-11-13", time:"19:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Alternative to Pho Hoa Pasteur the same evening — might be too busy." },
-    { id:"E06", name:"Bánh Canh Cua 14", lat:10.7920, lng:106.6850, type:"Street stall", date:"2026-11-14", time:"08:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
-    { id:"E07", name:"Kieu Bao Barbecue Rice Noodles", lat:10.7680, lng:106.6940, type:"Restaurant", date:"2026-11-14", time:"19:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"139 Đề Thám, Cầu Ông Lãnh. A snack-ish dinner rather than your only meal." },
+    { id:"E03", name:"Cơm Tấm Ba Ghiền", lat:10.7944422, lng:106.6693599, type:"Restaurant", date:"2026-11-13", time:"12:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Cơm tấm = broken rice, grilled pork, egg, pickles, scallion oil, fish sauce." },
+    { id:"E04", name:"Pho Hoa Pasteur", lat:10.7866905, lng:106.6892627, type:"Restaurant", date:"2026-11-13", time:"19:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E05", name:"Bánh Xèo 46A", lat:10.7895674, lng:106.6913428, type:"Restaurant", date:"2026-11-13", time:"19:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Alternative to Pho Hoa Pasteur the same evening — might be too busy." },
+    { id:"E06", name:"Bánh Canh Cua 14", lat:10.759495, lng:106.68017, type:"Street stall", date:"2026-11-14", time:"08:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E07", name:"Kieu Bao Barbecue Rice Noodles", lat:10.7652819, lng:106.694635, type:"Restaurant", date:"2026-11-14", time:"19:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"139 Đề Thám, Cầu Ông Lãnh. A snack-ish dinner rather than your only meal." },
     { id:"E08", name:"Vietnamese dessert / chè", lat:10.7700, lng:106.6950, type:"Dessert", date:"2026-11-14", time:"21:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"No specific place named — pick one on the walk." },
     { id:"E09", name:"Cocktail bar", lat:10.7735, lng:106.7005, type:"Bar", date:"2026-11-14", time:"21:45", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"No specific place named." },
-    { id:"E10", name:"MAY Kitchenware", lat:21.0400, lng:105.8380, type:"Cafe", date:"2026-11-15", time:"16:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Salt coffee, cute bowls." },
-    { id:"E11", name:"Tầm Vị", lat:21.0180, lng:105.8180, type:"Restaurant", date:"2026-11-15", time:"19:30", openTime:null, reservation:"Anais is making it", confidence:null, link:null, booked:null, notes:"Cheapest Michelin-star restaurant in Hanoi. Order à la carte." },
-    { id:"E12", name:"Savage Hanoi", lat:21.0420, lng:105.8220, type:"Bar", date:"2026-11-15", time:"22:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E10", name:"MAY Kitchenware", lat:21.0420348, lng:105.8483295, type:"Cafe", date:"2026-11-15", time:"16:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Salt coffee, cute bowls." },
+    { id:"E11", name:"Tầm Vị", lat:21.0290273, lng:105.8394556, type:"Restaurant", date:"2026-11-15", time:"19:30", openTime:null, reservation:"Anais is making it", confidence:null, link:null, booked:null, notes:"Cheapest Michelin-star restaurant in Hanoi. Order à la carte." },
+    { id:"E12", name:"Savage Hanoi", lat:21.0640909, lng:105.8268698, type:"Bar", date:"2026-11-15", time:"22:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
     { id:"E13", name:"Unmute", lat:21.0310, lng:105.8540, type:"Bar", date:"2026-11-15", time:"23:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
-    { id:"E14", name:"Bánh Cuốn Bà Xuân", lat:21.0355, lng:105.8495, type:"Street stall", date:"2026-11-16", time:"07:30", openTime:"6:30am–1:30pm, 3:30pm–11:30pm", reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
-    { id:"E15", name:"An Phong restaurant", lat:20.2230, lng:105.9180, type:"Restaurant", date:"2026-11-21", time:"12:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
-    { id:"E16", name:"Night market Pho Co Hoa Lu", lat:20.2830, lng:105.9100, type:"Market", date:"2026-11-21", time:"19:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
+    { id:"E14", name:"Bánh Cuốn Bà Xuân", lat:21.0421987, lng:105.8477122, type:"Street stall", date:"2026-11-16", time:"07:30", openTime:"6:30am–1:30pm, 3:30pm–11:30pm", reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E15", name:"An Phong restaurant", lat:20.2165673, lng:105.9382446, type:"Restaurant", date:"2026-11-21", time:"12:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:null },
+    { id:"E16", name:"Night market Pho Co Hoa Lu", lat:20.2633839, lng:105.9681679, type:"Market", date:"2026-11-21", time:"19:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
     { id:"E17", name:"Wine At Where", lat:20.2240, lng:105.9175, type:"Bar", date:"2026-11-21", time:"21:00", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
-    { id:"E18", name:"Bếp Cuốn Đà Nẵng", lat:16.0590, lng:108.2200, type:"Restaurant", date:"2026-11-22", time:"13:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Lunch on landing in Da Nang, before the drive to Hoi An." },
+    { id:"E18", name:"Bếp Cuốn Đà Nẵng", lat:16.0579628, lng:108.2451505, type:"Restaurant", date:"2026-11-22", time:"13:30", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Lunch on landing in Da Nang, before the drive to Hoi An." },
     { id:"E19", name:"Hoi An night market", lat:15.8755, lng:108.3285, type:"Market", date:"2026-11-23", time:"20:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
-    { id:"E20", name:"Market Bar", lat:15.8762, lng:108.3292, type:"Bar", date:"2026-11-23", time:"21:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Overlooks the Thu Bon River. Try Lady Trieu, a gin made in Vietnam with lemongrass and star anise, and Chuoi Nui, a sour cocktail with banana-infused rice wine and Sampan Monsoon white rum." },
-    { id:"E21", name:"Eight Days a Week", lat:15.8795, lng:108.3250, type:"Bar", date:"2026-11-23", time:"22:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Bar with live music." },
+    { id:"E20", name:"Market Bar", lat:15.8767267, lng:108.3327747, type:"Bar", date:"2026-11-23", time:"21:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Overlooks the Thu Bon River. Try Lady Trieu, a gin made in Vietnam with lemongrass and star anise, and Chuoi Nui, a sour cocktail with banana-infused rice wine and Sampan Monsoon white rum." },
+    { id:"E21", name:"Eight Days a Week", lat:15.9092216, lng:108.3459392, type:"Bar", date:"2026-11-23", time:"22:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Bar with live music." },
     { id:"E22", name:"Hoi An Market food hall", lat:15.8775, lng:108.3300, type:"Market", date:"2026-11-24", time:"12:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:null },
     { id:"E23", name:"Moments Coffee", lat:15.8788, lng:108.3275, type:"Cafe", date:"2026-11-24", time:"13:15", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"One of three coffee options listed for Hoi An; the other two are Faifo and Uncle Huan." },
-    { id:"E24", name:"Roving Chill House", lat:15.8930, lng:108.3290, type:"Cafe", date:"2026-11-24", time:"16:45", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Next to rice fields. Listed as the stop after An Bang Beach." },
-    { id:"E25", name:"Quan Cao Lau Ba Le", lat:15.8800, lng:108.3240, type:"Restaurant", date:"2026-11-24", time:"20:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Hoi An's signature dish: cao lau. 8PM as stated." },
+    { id:"E24", name:"Roving Chill House", lat:15.8924806, lng:108.3521813, type:"Cafe", date:"2026-11-24", time:"16:45", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Next to rice fields. Listed as the stop after An Bang Beach." },
+    { id:"E25", name:"Quan Cao Lau Ba Le", lat:15.8794816, lng:108.3294126, type:"Restaurant", date:"2026-11-24", time:"20:00", openTime:null, reservation:"walk in", confidence:null, link:null, booked:null, notes:"Hoi An's signature dish: cao lau. 8PM as stated." },
     { id:"E26", name:"Hem Hoi An", lat:15.8790, lng:108.3268, type:"Bar", date:"2026-11-24", time:"21:30", openTime:null, reservation:null, confidence:null, link:null, booked:null, notes:"Vietnamese sake." }
   ],
 
@@ -489,7 +492,7 @@ window.SAMPLE = {
       toName:"Ha Giang", toLat:22.8233, toLng:104.9784,
       date:"2026-11-16", endDate:"2026-11-17", depLocal:"20:00", arrLocal:"03:00",
       distanceMi:null, durationMin:390, elevationFt:null, price:null,
-      booked:false, link:null, linkedTo:["S2"],
+      booked:true, link:null, linkedTo:["S2"],
       notes:"6–7 h overnight. Pickup at 38A Phố Trần Phú, Ba Đình, Hà Nội 150000. Departure time is an assumption — confirm with the operator." },
 
     { id:"T2", mode:"motorbike", label:"Ha Giang loop — day 1",
@@ -497,28 +500,28 @@ window.SAMPLE = {
       toName:"Dong Van", toLat:23.2764, toLng:105.3636,
       date:"2026-11-17", endDate:null, depLocal:"08:30", arrLocal:null,
       distanceMi:null, durationMin:null, elevationFt:null, price:null,
-      booked:false, link:null, linkedTo:["S3"], notes:"Over Ma Pi Leng Pass." },
+      booked:true, link:null, linkedTo:["S3"], notes:"Over Ma Pi Leng Pass." },
 
     { id:"T3", mode:"motorbike", label:"Ha Giang loop — day 2 (Lung Cu day trip)",
       fromName:"Dong Van", fromLat:23.2764, fromLng:105.3636,
       toName:"Lung Cu Flag Tower", toLat:23.3652, toLng:105.3192,
       date:"2026-11-18", endDate:null, depLocal:"08:30", arrLocal:null,
       distanceMi:null, durationMin:null, elevationFt:null, price:null,
-      booked:false, link:null, linkedTo:[], notes:"Day trip — returns to Dong Van the same evening, so only the outbound leg is drawn." },
+      booked:true, link:null, linkedTo:[], notes:"Day trip — returns to Dong Van the same evening, so only the outbound leg is drawn." },
 
     { id:"T4", mode:"motorbike", label:"Ha Giang loop — day 3",
       fromName:"Dong Van", fromLat:23.2764, fromLng:105.3636,
       toName:"Du Gia", toLat:22.8833, toLng:105.1500,
       date:"2026-11-19", endDate:null, depLocal:"08:30", arrLocal:null,
       distanceMi:null, durationMin:null, elevationFt:null, price:null,
-      booked:false, link:null, linkedTo:["S4"], notes:null },
+      booked:true, link:null, linkedTo:["S4"], notes:null },
 
     { id:"T5", mode:"motorbike", label:"Ha Giang loop — day 4",
       fromName:"Du Gia", fromLat:22.8833, fromLng:105.1500,
       toName:"Ha Giang", toLat:22.8233, toLng:104.9784,
       date:"2026-11-20", endDate:null, depLocal:"08:30", arrLocal:null,
       distanceMi:null, durationMin:null, elevationFt:null, price:null,
-      booked:false, link:null, linkedTo:[], notes:"Back to Ha Giang in time for the evening bus south." },
+      booked:true, link:null, linkedTo:[], notes:"Back to Ha Giang in time for the evening bus south." },
 
     { id:"T6", mode:"bus", label:"Sleeper bus to Ninh Binh",
       fromName:"Ha Giang", fromLat:22.8233, fromLng:104.9784,
@@ -543,6 +546,25 @@ window.SAMPLE = {
       distanceMi:null, durationMin:60, elevationFt:null, price:null,
       booked:false, link:null, linkedTo:["S6"],
       notes:"~1 h drive, arriving Hoi An around 16:30. Leaves room for lunch in Da Nang after the 12:40 landing." },
+
+    /* Two walks with NO coordinates at all: From/To are matched by name against
+       Places, Food and Stays. This is the shape to copy for a walk between two
+       things that already exist in Notion. */
+    { id:"W1", mode:"walk", label:"Walk to the covered bridge",
+      fromName:"Hoi An Airbnb", fromLat:null, fromLng:null,
+      toName:"Japanese Covered Bridge", toLat:null, toLng:null,
+      date:"2026-11-25", endDate:null, depLocal:"07:50", arrLocal:"08:00",
+      distanceMi:null, durationMin:10, elevationFt:null, price:null,
+      booked:true, link:null, linkedTo:[],
+      notes:"Endpoints resolved from the place names — no coordinates typed in." },
+
+    { id:"W2", mode:"walk", label:"Walk to the night market",
+      fromName:"Explore the Ancient Town", fromLat:null, fromLng:null,
+      toName:"Hoi An night market", toLat:null, toLng:null,
+      date:"2026-11-23", endDate:null, depLocal:"20:15", arrLocal:"20:30",
+      distanceMi:null, durationMin:15, elevationFt:null, price:null,
+      booked:true, link:null, linkedTo:[],
+      notes:"Endpoints resolved from the place names — no coordinates typed in." },
 
     { id:"T9", mode:"taxi", label:"Airport transfer to Da Nang",
       fromName:"Hoi An", fromLat:15.8801, fromLng:108.3380,
@@ -628,16 +650,16 @@ window.AIRPORTS = {
   const CLUSTER_PX = 34;
 
   const MODES = {
-    flight:    { dash: '1 12',     weight: 2.5, cap: 'round', label: 'Flight' },
-    train:     { dash: '14 7',     weight: 3,   cap: 'butt',  label: 'Train' },
-    bus:       { dash: '10 9',     weight: 3,   cap: 'butt',  label: 'Bus' },
-    taxi:      { dash: '3 8',      weight: 3,   cap: 'round', label: 'Taxi / car' },
-    car:       { dash: '3 8',      weight: 3,   cap: 'round', label: 'Taxi / car' },
-    motorbike: { dash: '8 5 2 5',  weight: 2.5, cap: 'round', label: 'Motorbike' },
-    bike:      { dash: '6 6',      weight: 2.5, cap: 'round', label: 'Bike' },
-    walk:      { dash: '1 7',      weight: 4,   cap: 'round', label: 'Walk' },
-    ferry:     { dash: '16 6 2 6', weight: 2.5, cap: 'butt',  label: 'Ferry' },
-    other:     { dash: '5 5',      weight: 2.5, cap: 'butt',  label: 'Other' }
+    flight:    { dash: '1 13',     weight: 3.5, cap: 'round', label: 'Flight' },
+    train:     { dash: '15 8',     weight: 4,   cap: 'butt',  label: 'Train' },
+    bus:       { dash: '11 9',     weight: 4,   cap: 'butt',  label: 'Bus' },
+    taxi:      { dash: '3 8',      weight: 4,   cap: 'round', label: 'Taxi / car' },
+    car:       { dash: '3 8',      weight: 4,   cap: 'round', label: 'Taxi / car' },
+    motorbike: { dash: '9 5 2 5',  weight: 3.5, cap: 'round', label: 'Motorbike' },
+    bike:      { dash: '7 6',      weight: 3.5, cap: 'round', label: 'Bike' },
+    walk:      { dash: '1 8',      weight: 5,   cap: 'round', label: 'Walk' },
+    ferry:     { dash: '17 6 2 6', weight: 3.5, cap: 'butt',  label: 'Ferry' },
+    other:     { dash: '5 5',      weight: 3.5, cap: 'butt',  label: 'Other' }
   };
   const LEGEND_MODES = ['flight', 'bus', 'taxi', 'motorbike', 'walk', 'train'];
 
@@ -710,6 +732,24 @@ window.AIRPORTS = {
     return NEUTRAL;
   }
 
+  // "10.78,106.69; 10.79,106.70" -> [[10.78,106.69],[10.79,106.70]].
+  // Tolerant on separators because these get pasted from Google Maps by hand:
+  // semicolons, newlines or pipes all split, and stray whitespace is ignored.
+  // A pair that is not two finite numbers in range is dropped rather than
+  // poisoning the whole line.
+  function parseRoute(str) {
+    if (!str) return null;
+    const pts = String(str).split(/[;|\n]+/).map(function (chunk) {
+      const m = chunk.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+      if (!m) return null;
+      const la = parseFloat(m[1]), ln = parseFloat(m[2]);
+      if (!isFinite(la) || !isFinite(ln)) return null;
+      if (la < -90 || la > 90 || ln < -180 || ln > 180) return null;
+      return [la, ln];
+    }).filter(Boolean);
+    return pts.length >= 2 ? pts : null;     // one point is a dot, not a path
+  }
+
   /* ── GEOMETRY ──────────────────────────────────────────────────────────── */
 
   const R = Math.PI / 180, D = 180 / Math.PI;
@@ -742,6 +782,20 @@ window.AIRPORTS = {
       else if (delta < -180) pts[i][1] += 360;
     }
     return pts;
+  }
+
+  // Summed leg-by-leg, so a multi-point route measures along the path rather
+  // than end to end.
+  function routeMiles(pts) {
+    let m = 0;
+    for (let i = 1; i < pts.length; i++) m += gcMilesExact(pts[i - 1], pts[i]);
+    return m < 10 ? m.toFixed(1) : String(Math.round(m));
+  }
+
+  function gcMilesExact(a, b) {
+    const dl = Math.sin((a[0] - b[0]) * R / 2) ** 2 +
+               Math.cos(a[0] * R) * Math.cos(b[0] * R) * Math.sin((a[1] - b[1]) * R / 2) ** 2;
+    return 2 * 3958.8 * Math.asin(Math.min(1, Math.sqrt(dl)));
   }
 
   function gcMiles(a, b) {
@@ -804,25 +858,64 @@ window.AIRPORTS = {
       });
     });
 
+    // Name lookup for transport endpoints. Built from everything that has a
+    // position, so a Walk row can say From "Hoi An Airbnb" / To "Market Bar"
+    // and skip retyping four numbers. Explicit coordinates always win; this
+    // only fills blanks.
+    const byName = {};
+    function remember(name, lat, lng) {
+      if (!name || lat == null || lng == null) return;
+      const k = name.trim().toLowerCase();
+      if (!(k in byName)) byName[k] = { lat: lat, lng: lng };   // first wins
+    }
+    (raw.stays  || []).forEach(function (x) { remember(x.name, x.lat, x.lng); });
+    (raw.places || []).forEach(function (x) {
+      const r = parseRoute(x.route);
+      remember(x.name, x.lat != null ? x.lat : (r && r[0][0]),
+                       x.lng != null ? x.lng : (r && r[0][1]));
+    });
+    (raw.food   || []).forEach(function (x) { remember(x.name, x.lat, x.lng); });
+    Object.keys(window.AIRPORTS || {}).forEach(function (code) {
+      const a = window.AIRPORTS[code];
+      remember(code, a.lat, a.lng);
+      remember(a.city, a.lat, a.lng);
+    });
+
+    function resolve(name, lat, lng) {
+      if (lat != null && lng != null) return { lat: lat, lng: lng, derived: false };
+      const hit = name ? byName[String(name).trim().toLowerCase()] : null;
+      if (hit) return { lat: hit.lat, lng: hit.lng, derived: true };
+      return { lat: lat, lng: lng, derived: false };
+    }
+
     (raw.transport || []).forEach(function (t) {
+      const A = resolve(t.fromName, t.fromLat, t.fromLng);
+      const B = resolve(t.toName,   t.toLat,   t.toLng);
       const fields = [
         ['Mode', (MODES[t.mode] || MODES.other).label],
         ['Route', t.fromName + ' → ' + t.toName],
         ['Departs', t.depLocal ? t.depLocal + ' local' : null],
         ['Arrives', t.arrLocal ? t.arrLocal + ' local' : null],
         ['Duration', fmtMin(t.durationMin)],
-        ['Distance', t.distanceMi != null ? t.distanceMi + ' mi' : null],
+        ['Distance', t.distanceMi != null ? t.distanceMi + ' mi'
+          : (A.lat != null && B.lat != null
+              ? gcMiles([A.lat, A.lng], [B.lat, B.lng]) + ' mi straight-line' : null)],
         ['Elevation', t.elevationFt != null ? '+' + t.elevationFt + ' ft' : null],
         ['Price', t.price != null ? '$' + t.price : null]
       ];
+      if (A.derived || B.derived) {
+        fields.push(['Position', 'from ' +
+          [A.derived ? t.fromName : null, B.derived ? t.toName : null]
+            .filter(Boolean).join(' and ')]);
+      }
       items.push({
         id: t.id, kind: 'transport', geo: 'leg', mode: t.mode || 'other',
         title: t.label || (t.fromName + ' → ' + t.toName),
         subtitle: t.fromName + ' → ' + t.toName,
         dates: t.endDate ? [t.date, t.endDate] : [t.date],
         time: t.depLocal, booked: t.booked,
-        from: { name: t.fromName, lat: t.fromLat, lng: t.fromLng },
-        to: { name: t.toName, lat: t.toLat, lng: t.toLng },
+        from: { name: t.fromName, lat: A.lat, lng: A.lng },
+        to: { name: t.toName, lat: B.lat, lng: B.lng },
         fields: fields, notes: t.notes, link: t.link, linkedTo: t.linkedTo || []
       });
     });
@@ -845,12 +938,21 @@ window.AIRPORTS = {
     });
 
     (raw.places || []).forEach(function (p) {
+      const route = parseRoute(p.route);
+      // A place with a route still has a node — at its own coordinates if given,
+      // otherwise at the start of the path, so the two never disagree.
+      const lat = p.lat != null ? p.lat : (route ? route[0][0] : null);
+      const lng = p.lng != null ? p.lng : (route ? route[0][1] : null);
       items.push({
         id: p.id, kind: 'place', geo: 'point',
         title: p.name, subtitle: p.category || null,
         dates: [p.date], time: p.time, booked: p.booked,
-        lat: p.lat, lng: p.lng,
-        fields: [['Category', p.category], ['Time', p.time]],
+        lat: lat, lng: lng, route: route,
+        fields: [
+          ['Category', p.category],
+          ['Time', p.time],
+          ['Walk', route ? route.length + ' points, ' + routeMiles(route) + ' mi' : null]
+        ],
         notes: p.notes, link: p.link
       });
     });
@@ -925,7 +1027,11 @@ window.AIRPORTS = {
 
     // Custom panes, not z-index on sibling elements: anything outside
     // .leaflet-map-pane cannot be ordered against Leaflet's own panes.
-    map.createPane('legHalo').style.zIndex = 380;
+    // Bottom to top: amber unbooked halo, dark casing, coloured line. The
+    // casing is what makes a thin dashed path legible over pale roads — a glow
+    // alone washes out against a light background.
+    map.createPane('legHalo').style.zIndex = 370;
+    map.createPane('legCase').style.zIndex = 380;
     map.createPane('legs').style.zIndex = 390;
     dayLayer = L.layerGroup().addTo(map);
 
@@ -1094,8 +1200,16 @@ window.AIRPORTS = {
           opacity: 0.18, dashArray: '5 7', interactive: false
         }).addTo(dayLayer);
       }
+      // Dark casing: same dash, wider stroke, drawn underneath. Each dash ends
+      // up outlined rather than sitting bare on the map.
       L.polyline(shifted, {
-        pane: 'legs', color: colour, weight: style.weight, opacity: 0.95,
+        pane: 'legCase', color: '#060b0f', weight: style.weight + 4.5,
+        opacity: 0.88, dashArray: style.dash, lineCap: style.cap,
+        interactive: false
+      }).addTo(dayLayer);
+
+      L.polyline(shifted, {
+        pane: 'legs', color: colour, weight: style.weight, opacity: 1,
         dashArray: style.dash, lineCap: style.cap, interactive: true
       }).on('click', function () { select(item.id); })
         .bindTooltip(item.title, { className: 'tip', sticky: true })
@@ -1110,6 +1224,37 @@ window.AIRPORTS = {
     return bounds;
   }
 
+  // A place whose geometry IS a path — "walk around District 3". Drawn with the
+  // walk dash and the place's own colour, because it belongs to that place
+  // rather than being a leg between two of them.
+  function drawRoute(item) {
+    const style = MODES.walk;
+    const colour = nodeColor(item);
+
+    L.polyline(item.route, {
+      pane: 'legCase', color: '#060b0f', weight: style.weight + 4.5,
+      opacity: 0.88, dashArray: style.dash, lineCap: style.cap, interactive: false
+    }).addTo(dayLayer);
+
+    if (item.booked === false) {
+      L.polyline(item.route, {
+        pane: 'legHalo', color: '#f2d08a', weight: style.weight + 8,
+        opacity: 0.18, dashArray: '5 7', interactive: false
+      }).addTo(dayLayer);
+    }
+
+    L.polyline(item.route, {
+      pane: 'legs', color: colour, weight: style.weight, opacity: 1,
+      dashArray: style.dash, lineCap: style.cap, interactive: true
+    }).on('click', function () { select(item.id); })
+      .bindTooltip(item.title, { className: 'tip', sticky: true })
+      .addTo(dayLayer);
+
+    // A small open marker at the far end, so the direction of travel is visible.
+    const end = item.route[item.route.length - 1];
+    addNode(item, end[0], end[1], 'waypoint', item.title + ' — end');
+  }
+
   function renderMap(fit) {
     if (!map) return;
     dayLayer.clearLayers();
@@ -1122,6 +1267,10 @@ window.AIRPORTS = {
       if (i.geo === 'leg') {
         drawLeg(i).forEach(function (p) { bounds.push(p); });
       } else if (i.lat != null && i.lng != null) {
+        if (i.route) {
+          drawRoute(i);
+          i.route.forEach(function (pt) { bounds.push(pt); });
+        }
         points.push(i);
         bounds.push([i.lat, i.lng]);
       }
@@ -1346,7 +1495,8 @@ window.AIRPORTS = {
           return '<i style="background:' + TYPE_COLOR[k] + '"></i><span>' +
                  esc(TYPE_LABEL[k]) + '</span>';
         }).join('') +
-        '</div><div class="legend__note">Paths stay coloured by time of day.</div>';
+        '</div><div class="legend__note">Travel legs stay coloured by time of ' +
+        'day; a walking route drawn on a place takes that place\'s colour.</div>';
     } else {
       el.legendKey.innerHTML =
         '<div>Colour is time of day</div>' +
