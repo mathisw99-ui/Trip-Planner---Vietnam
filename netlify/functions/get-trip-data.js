@@ -29,6 +29,9 @@ const DBS = {
 };
 
 /* ── Notion property readers ─────────────────────────────────────────────── */
+/* Every reader returns null rather than undefined for a missing or empty
+   property, so a column that does not exist yet behaves exactly like a blank
+   one and the app's "—" rendering covers both. */
 
 const txt  = p => (p && (p.rich_text || p.title) || []).map(t => t.plain_text).join('').trim() || null;
 const num  = p => (p && typeof p.number === 'number') ? p.number : null;
@@ -74,7 +77,10 @@ const MAP = {
     id, name: txt(p['Name']), lat: num(p['Lat']), lng: num(p['Lng']),
     date: dateOnly(p['When']), time: timeOnly(p['When']),
     category: sel(p['Category']), link: url(p['Link']),
-    booked: chk(p['Booked']), notes: txt(p['Notes'])
+    booked: chk(p['Booked']),
+    // Optional walking path: "lat,lng; lat,lng; ..." — parsed client-side.
+    route: txt(p['Route']),
+    notes: txt(p['Notes'])
   }),
 
   food: (p, id) => ({
