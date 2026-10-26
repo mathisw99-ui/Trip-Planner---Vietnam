@@ -68,6 +68,11 @@ const MAP = {
     date:    dateOnly(p['Date']),
     order:   num(p['Order']),
     type:    (sel(p['Type']) || 'Stop').toLowerCase(),
+    // Flight rows only. Fixed local wall-clock times, not durations: a flight
+    // leaves when it leaves, and the day is pinned to it rather than the other
+    // way round.
+    startTime: txt(p['Start time']),
+    endTime:   txt(p['End time']),
     durationMin:  num(p['Duration (min)']),
     durationMode: (sel(p['Duration mode']) || 'Estimated').toLowerCase(),
     mode:    (sel(p['Mode']) || '').toLowerCase() || null,
@@ -79,6 +84,7 @@ const MAP = {
     placeId: rel(p['Place'])[0] || null,
     foodId:  rel(p['Food'])[0]  || null,
     stayId:  rel(p['Stay'])[0]  || null,
+    flightId: rel(p['Flight'])[0] || null,
     notes:   txt(p['Notes'])
   }),
 

@@ -62,6 +62,10 @@ const MODE_NAME = {
 // column per target database, because a Notion relation points at exactly one.
 const REF_PROP = { place: 'Place', food: 'Food', stay: 'Stay' };
 
+// Flights link to their own database rather than the three catalogue ones, and
+// carry two fixed clock times instead of a duration.
+const FLIGHT_PROP = 'Flight';
+
 function allowedSources() {
   return [
     process.env.DB_DAYS, process.env.DB_FLIGHTS, process.env.DB_STAYS,
@@ -283,19 +287,33 @@ exports.handler = async function (event) {
     try {
       if (!itinDb) throw new Error('DB_ITINERARY not set');
       if (!isDate(e.date)) throw new Error('bad date, expected YYYY-MM-DD');
-      const type = e.type === 'Travel' ? 'Travel' : 'Stop';
-      const dur = Number(e.durationMin);
-      if (!isFinite(dur) || dur < 0 || dur > 60 * 36) throw new Error('bad duration');
+      const type = e.type === 'Travel' ? 'Travel' : (e.type === 'Flight' ? 'Flight' : 'Stop');
       const ord = Number(e.order);
       if (!isFinite(ord) || ord < 0) throw new Error('bad order');
+
+      // A flight is timetabled, not budgeted: two fixed clock times and no
+      // duration. Everything else is the reverse.
+      let dur = null;
+      if (type !== 'Flight') {
+        dur = Number(e.durationMin);
+        if (!isFinite(dur) || dur < 0 || dur > 60 * 36) throw new Error('bad duration');
+        dur = Math.round(dur);
+      } else {
+        if (e.startTime != null && !isHM(e.startTime)) throw new Error('bad start time, expected HH:MM');
+        if (e.endTime != null && !isHM(e.endTime)) throw new Error('bad end time, expected HH:MM');
+        if (!e.startTime && !e.endTime) throw new Error('a flight needs a departure or an arrival time');
+      }
 
       const props = {
         Name: { title: [{ type: 'text', text: { content: String(e.name || type).slice(0, 200) } }] },
         Date: { date: { start: e.date } },
         Order: { number: Math.round(ord) },
         Type: { select: { name: type } },
-        'Duration (min)': { number: Math.round(dur) },
-        'Duration mode': { select: { name: e.durationMode === 'Manual' ? 'Manual' : 'Estimated' } },
+        'Duration (min)': { number: dur },
+        'Duration mode': type === 'Flight' ? { select: null }
+          : { select: { name: e.durationMode === 'Manual' ? 'Manual' : 'Estimated' } },
+        'Start time': text(type === 'Flight' ? (e.startTime || '') : ''),
+        'End time':   text(type === 'Flight' ? (e.endTime   || '') : ''),
         Lat: numOrNull(e.lat), Lng: numOrNull(e.lng),
         'To lat': numOrNull(e.toLat), 'To lng': numOrNull(e.toLng),
         'Area radius (m)': numOrNull(e.areaRadius),
@@ -311,6 +329,15 @@ exports.handler = async function (event) {
       } else {
         props.Mode = { select: null };
         props.Route = text('');
+      }
+
+      // Written every time, so re-pointing or clearing a flight link cannot
+      // leave the old one behind — the same rule as the catalogue relations.
+      props[FLIGHT_PROP] = { relation: [] };
+      if (type === 'Flight' && e.flightId) {
+        if (!isId(e.flightId)) throw new Error('bad flight id');
+        await assertWritable(e.flightId, token, allow);
+        props[FLIGHT_PROP] = { relation: [{ id: e.flightId }] };
       }
 
       // The link back to the catalogue. All three relation columns are written
