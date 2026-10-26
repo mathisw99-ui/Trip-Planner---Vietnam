@@ -30,13 +30,14 @@
   --focus:#7fd4ff;
   --rail-h:76px;
   --tl-w:316px;          /* timeline rail width */
+  --bd-w:392px;          /* build rail — wider, it holds controls not just text */
   --bar-h:52px;
   --font:"Barlow","Helvetica Neue",Helvetica,Arial,sans-serif;
   --font-c:"Barlow Condensed","Barlow","Helvetica Neue",Arial,sans-serif;
 }
 
 *{box-sizing:border-box}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;overflow:hidden;overflow:clip}
 body{
   margin:0; background:var(--ink); color:var(--paper);
   font-family:var(--font); font-size:15px; line-height:1.5;
@@ -44,6 +45,7 @@ body{
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
   overflow:hidden;
+  overflow:clip;
 }
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 a{color:var(--focus);text-underline-offset:2px}
@@ -117,8 +119,14 @@ a{color:var(--focus);text-underline-offset:2px}
 /* ──────────────────────────────────────────────────────────────────────────
    Stage
    ────────────────────────────────────────────────────────────────────────── */
-.stage{position:absolute;inset:calc(var(--bar-h) + var(--rail-h) + env(safe-area-inset-top,0px)) 0 env(safe-area-inset-bottom,0px) 0}
+/* Clip the stage. The detail panel sits parked 330px beyond the right edge
+   while closed (it slides in on a transform), and that made the root scrollable
+   by exactly its width — which is how the page could be dragged sideways and
+   lose its left edge. Nothing is meant to escape the stage anyway. */
+.stage{position:absolute;inset:calc(var(--bar-h) + var(--rail-h) + env(safe-area-inset-top,0px)) 0 env(safe-area-inset-bottom,0px) 0;
+       overflow:hidden;overflow:clip}
 #map{position:absolute;top:0;bottom:0;left:0;right:var(--tl-w);background:#0e161c}
+.stage.view-build #map{right:var(--bd-w)}
 .stage.no-tl #map{right:0}
 #map.is-hidden{visibility:hidden}
 .leaflet-container{background:#0e161c;font-family:var(--font)}
@@ -265,11 +273,131 @@ a{color:var(--focus);text-underline-offset:2px}
 }
 .tedit .tedit__reset{color:var(--focus);border-color:transparent}
 
-.tl__foot{border-top:1px solid var(--rule);padding:8px 12px;display:flex;gap:7px;flex-wrap:wrap}
+/* The deploy injects a "Powered by Netlify" badge bottom-right, directly over
+   this strip. The deep bottom padding lifts the buttons clear of it. Keep it in
+   the shorthand: a separate padding-bottom rule gets reset by this one. */
+.tl__foot{border-top:1px solid var(--rule);padding:8px 12px 46px;display:flex;gap:7px;flex-wrap:wrap}
 .btn{border:1px solid var(--rule);border-radius:2px;padding:4px 10px;font-size:12.5px;color:var(--muted)}
 .btn:hover{background:var(--panel-2);color:var(--paper)}
 .btn--on{background:var(--panel-2);color:var(--paper);border-color:var(--muted-2)}
 .btn--ghost{border-color:transparent;color:var(--muted-2)}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Build rail — the day being put together. Same geometry as the timeline, but
+   every row is editable: order, duration, mode, which day it belongs to.
+   ────────────────────────────────────────────────────────────────────────── */
+.bd{
+  position:absolute;top:0;right:0;bottom:0;width:var(--bd-w);z-index:850;
+  background:var(--panel);border-left:1px solid var(--rule);
+  display:none;flex-direction:column;
+}
+.stage.view-build .bd{display:flex}
+.stage.view-build .tl{display:none}
+.stage.no-tl .bd{display:none}
+.bd__head{padding:10px 13px 8px;border-bottom:1px solid var(--rule)}
+.bd__title{font-family:var(--font-c);font-size:19px;font-weight:600}
+.bd__sub{font-size:12px;color:var(--muted-2)}
+.bd__clock{
+  display:flex;gap:10px;align-items:baseline;margin-top:5px;font-family:var(--font-c);
+  font-size:13px;letter-spacing:.03em;color:var(--muted);
+}
+.bd__clock b{font-weight:600;color:var(--paper);font-size:15px}
+.bd__start{
+  background:var(--ink);border:1px solid var(--rule);border-radius:2px;color:var(--paper);
+  font:inherit;font-size:12.5px;padding:1px 4px;width:74px;
+}
+.bd__body{flex:1;overflow-y:auto;padding:4px 0 10px}
+.bd__foot{border-top:1px solid var(--rule);padding:8px 12px 46px;display:flex;gap:7px;flex-wrap:wrap}
+.bd__empty{padding:16px 15px;color:var(--muted-2);font-size:13px;line-height:1.55}
+
+/* One planned entry. Grid so the times column stays aligned down the day. */
+.st{
+  display:grid;grid-template-columns:46px 1fr;gap:9px;
+  padding:6px 12px 7px 10px;border-top:1px solid rgba(48,68,79,.45);
+}
+.st:hover{background:rgba(34,50,61,.5)}
+.st.is-active{background:var(--panel-2);box-shadow:inset 3px 0 0 var(--paper)}
+.st--travel{background:rgba(14,22,28,.5)}
+.st--implied{opacity:.72}
+.st__when{
+  font-family:var(--font-c);font-size:14px;line-height:1.25;color:var(--muted);
+  text-align:right;padding-top:2px;
+}
+.st__when b{display:block;font-weight:600;color:var(--paper)}
+.st__when i{display:block;font-style:normal;font-size:11.5px;color:var(--muted-2)}
+.st__main{min-width:0}
+.st__row1{display:flex;align-items:baseline;gap:7px}
+.st__dot{
+  width:10px;height:10px;border-radius:50%;background:var(--c,#60707c);flex:none;
+  border:1.5px solid rgba(255,255,255,.7);margin-top:4px;
+}
+.st--travel .st__dot{border-radius:1px;height:4px;margin-top:7px}
+.st__nm{
+  flex:1;font-size:13.5px;line-height:1.35;text-align:left;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.st__seq{font-family:var(--font-c);font-size:11px;color:var(--muted-2);flex:none;width:14px;text-align:right}
+.st__meta{font-size:11.5px;color:var(--muted-2);margin-top:1px}
+.st__meta em{font-style:normal;color:var(--warn)}
+.st__ctl{display:flex;gap:4px;align-items:center;margin-top:5px;flex-wrap:wrap}
+/* A gap, not a spring. Growing it pushed the arrows to the far right and split
+   the move/day/delete group across the wrap; a fixed gap lets the whole group
+   flow and wrap together. */
+.st__sep{flex:0 0 9px}
+.st__ctl button,.bd__add button.mini{
+  border:1px solid var(--rule);border-radius:2px;padding:1px 5px;font-size:11px;color:var(--muted-2);
+}
+/* Arrows rather than "‹ day": the title and aria-label carry the meaning, and
+   the words cost the width that forces the row onto a second line. */
+.st__day{font-family:var(--font-c);letter-spacing:-.04em}
+.st__ctl button:hover{background:var(--panel-2);color:var(--paper)}
+.st__ctl button:disabled{opacity:.3;cursor:default}
+.st__ctl input,.st__ctl select,.bd__add input,.bd__add select{
+  background:var(--ink);border:1px solid var(--rule);border-radius:2px;color:var(--paper);
+  font:inherit;font-size:11.5px;padding:1px 3px;
+}
+.st__ctl input[type="number"]{width:46px}
+.st__ctl select{max-width:96px}
+.st__del{color:var(--muted-2);font-size:15px;line-height:1;padding:0 2px;flex:none;opacity:.55}
+.st:hover .st__del,.st.is-active .st__del{opacity:1}
+.st__del:hover{color:var(--warn)}
+.st__pin{color:var(--focus)}
+
+/* The add drawer at the foot of the build rail. */
+.bd__add{border-top:1px solid var(--rule);padding:8px 12px 10px}
+.bd__addtoggle{
+  display:block;width:100%;text-align:left;padding:2px 0 7px;
+  font-family:var(--font-c);font-size:13px;letter-spacing:.06em;color:var(--muted);
+}
+.bd__addtoggle:hover{color:var(--paper)}
+.bd__add:not(.is-open) .bd__addtoggle{padding-bottom:1px}
+.bd__add .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.bd__add input[type="search"],.bd__add input[type="text"]{flex:1;min-width:110px;padding:3px 6px;font-size:12.5px}
+.cand{max-height:168px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px}
+.cand__row{display:flex;gap:7px;align-items:center;width:100%;padding:4px 7px;text-align:left;font-size:12.5px}
+.cand__row:hover{background:var(--panel-2)}
+.cand__row i{width:9px;height:9px;border-radius:50%;background:var(--c,#60707c);flex:none}
+.cand__row span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand__row u{text-decoration:none;color:var(--muted-2);font-size:11px;flex:none}
+.cand__none{padding:7px;color:var(--muted-2);font-size:12px}
+.pick-hint{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:700;
+  background:rgba(27,40,49,.96);border:1px solid var(--t-attr);border-radius:3px;
+  padding:7px 12px;display:none;align-items:center;gap:12px;font-size:12.5px;
+  box-shadow:0 4px 18px -6px rgba(0,0,0,.8);white-space:nowrap;
+}
+.stage.picking .pick-hint{display:flex}
+.stage.picking #map{cursor:crosshair}
+
+/* A node that is on the day but not yet in the plan: visible, clearly not
+   chosen. Clicking it adds it. */
+.node--cand .node__dot{opacity:.42;border-style:dashed;box-shadow:none}
+.node__n{
+  position:absolute;top:19px;left:50%;transform:translateX(-50%);
+  font-family:var(--font-c);font-size:11px;font-weight:600;line-height:1.2;
+  color:var(--paper);background:rgba(20,29,37,.88);border:1px solid var(--rule);
+  border-radius:2px;padding:0 4px;white-space:nowrap;
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
    Path tool
@@ -298,6 +426,7 @@ a{color:var(--focus);text-underline-offset:2px}
 .paths__sw{width:10px;height:10px;border-radius:2px;background:var(--focus);flex:none}
 .paths__mi{color:var(--muted-2);font-size:11px;margin-left:5px}
 .paths__nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:left}
+.paths__none{padding:4px 12px 6px;color:var(--muted-2);font-size:11.5px;line-height:1.45}
 .paths__x{color:var(--muted-2);font-size:15px;line-height:1;padding:0 3px}
 .paths__x:hover{color:var(--warn)}
 .toast{
@@ -366,9 +495,9 @@ a{color:var(--focus);text-underline-offset:2px}
 @media (max-width:980px){
   /* Not enough width for map and rail side by side: the rail becomes a sheet
      over the map, opened from the toolbar. */
-  #map{right:0}
-  .tl{width:min(340px,86vw);box-shadow:-10px 0 30px -12px rgba(0,0,0,.8)}
-  .stage:not(.tl-open) .tl{display:none}
+  #map,.stage.view-build #map{right:0}
+  .tl,.bd{width:min(360px,90vw);box-shadow:-10px 0 30px -12px rgba(0,0,0,.8)}
+  .stage:not(.tl-open) .tl,.stage:not(.tl-open) .bd{display:none}
 }
 @media (max-width:720px){
   :root{--rail-h:70px}
@@ -388,7 +517,8 @@ a{color:var(--focus);text-underline-offset:2px}
   <span class="bar__spacer"></span>
   <span class="bar__flag" id="unbookedFlag" hidden></span>
   <div class="tabs" role="tablist" aria-label="View">
-    <button id="tabMap" role="tab" aria-selected="true">Map</button>
+    <button id="tabBuild" role="tab" aria-selected="true">Build</button>
+    <button id="tabMap" role="tab" aria-selected="false">Map</button>
     <button id="tabList" role="tab" aria-selected="false">List</button>
   </div>
 </header>
@@ -416,6 +546,11 @@ a{color:var(--focus);text-underline-offset:2px}
     <button class="btn btn--ghost" id="btnCancelPath">Cancel</button>
   </div>
 
+  <div class="pick-hint" id="pickHint" role="status">
+    <span id="pickText">Click the map to place it</span>
+    <button class="btn btn--ghost" id="btnCancelPick">Cancel</button>
+  </div>
+
   <section id="list" role="tabpanel" aria-labelledby="tabList"></section>
 
   <div class="legend" id="legend">
@@ -438,6 +573,17 @@ a{color:var(--focus);text-underline-offset:2px}
     <div class="tl__body" id="tlBody"></div>
     <div id="pathList"></div>
     <div class="tl__foot" id="tlFoot"></div>
+  </aside>
+
+  <aside class="bd" id="builder" role="tabpanel" aria-labelledby="tabBuild" aria-label="Build the day">
+    <div class="bd__head">
+      <div class="bd__title" id="bdTitle">Build</div>
+      <div class="bd__sub" id="bdSub"></div>
+      <div class="bd__clock" id="bdClock"></div>
+    </div>
+    <div class="bd__body" id="bdBody"></div>
+    <div class="bd__add" id="bdAdd"></div>
+    <div class="bd__foot" id="bdFoot"></div>
   </aside>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -481,20 +627,100 @@ window.SAMPLE = {
   },
 
   days: [
-    { date:"2026-11-13", sleeping:"Ho Chi Minh Airbnb",                 base:"Ho Chi Minh City", summary:"Land 04:45" },
-    { date:"2026-11-14", sleeping:"Ho Chi Minh Airbnb",                 base:"Ho Chi Minh City", summary:"Full day in the city" },
-    { date:"2026-11-15", sleeping:"Hanoi",                              base:"Hanoi",            summary:"Morning flight north, then a chiller day" },
-    { date:"2026-11-16", sleeping:"Sleeper bus (Hanoi → Ha Giang)",     base:"In transit",       summary:"Loop pickup at 38A Phố Trần Phú, Ba Đình" },
-    { date:"2026-11-17", sleeping:"Dong Van",                           base:"Ha Giang loop",    summary:"Ha Giang loop day 1" },
-    { date:"2026-11-18", sleeping:"Dong Van",                           base:"Ha Giang loop",    summary:"Ha Giang loop day 2" },
-    { date:"2026-11-19", sleeping:"Du Gia",                             base:"Ha Giang loop",    summary:"Ha Giang loop day 3" },
-    { date:"2026-11-20", sleeping:"Sleeper bus (Ha Giang → Ninh Binh)", base:"In transit",       summary:"Ha Giang loop day 4, then the overnight bus south" },
-    { date:"2026-11-21", sleeping:"Ninh Binh (Tam Coc)",                base:"Ninh Binh",        summary:"Hang Mua, Trang An boat tour" },
-    { date:"2026-11-22", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Long transfer day: bus, flight, drive" },
-    { date:"2026-11-23", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Lantern class, boat and lantern release" },
-    { date:"2026-11-24", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Cooking class, An Bang beach, bamboo circus" },
-    { date:"2026-11-25", sleeping:"Ho Chi Minh",                        base:"Ho Chi Minh City", summary:"Early temples, then fly south" },
-    { date:"2026-11-26", sleeping:null,                                 base:"Flying home",      summary:"Leave 18:40, land SF 17:00 the same day" }
+    { id:"D01", date:"2026-11-13", sleeping:"Ho Chi Minh Airbnb",                 base:"Ho Chi Minh City", summary:"Land 04:45", dayStart:"04:45" },
+    { id:"D02", date:"2026-11-14", sleeping:"Ho Chi Minh Airbnb",                 base:"Ho Chi Minh City", summary:"Full day in the city", dayStart:"08:00" },
+    { id:"D03", date:"2026-11-15", sleeping:"Hanoi",                              base:"Hanoi",            summary:"Morning flight north, then a chiller day", dayStart:"08:00" },
+    { id:"D04", date:"2026-11-16", sleeping:"Sleeper bus (Hanoi → Ha Giang)",     base:"In transit",       summary:"Loop pickup at 38A Phố Trần Phú, Ba Đình", dayStart:"07:30" },
+    { id:"D05", date:"2026-11-17", sleeping:"Dong Van",                           base:"Ha Giang loop",    summary:"Ha Giang loop day 1", dayStart:"08:30" },
+    { id:"D06", date:"2026-11-18", sleeping:"Dong Van",                           base:"Ha Giang loop",    summary:"Ha Giang loop day 2", dayStart:"08:30" },
+    { id:"D07", date:"2026-11-19", sleeping:"Du Gia",                             base:"Ha Giang loop",    summary:"Ha Giang loop day 3", dayStart:"08:30" },
+    { id:"D08", date:"2026-11-20", sleeping:"Sleeper bus (Ha Giang → Ninh Binh)", base:"In transit",       summary:"Ha Giang loop day 4, then the overnight bus south", dayStart:"08:30" },
+    { id:"D09", date:"2026-11-21", sleeping:"Ninh Binh (Tam Coc)",                base:"Ninh Binh",        summary:"Hang Mua, Trang An boat tour", dayStart:"07:00" },
+    { id:"D10", date:"2026-11-22", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Long transfer day: bus, flight, drive", dayStart:"10:00" },
+    { id:"D11", date:"2026-11-23", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Lantern class, boat and lantern release", dayStart:"10:00" },
+    { id:"D12", date:"2026-11-24", sleeping:"Hoi An",                             base:"Hoi An",           summary:"Cooking class, An Bang beach, bamboo circus", dayStart:"08:30" },
+    { id:"D13", date:"2026-11-25", sleeping:"Ho Chi Minh",                        base:"Ho Chi Minh City", summary:"Early temples, then fly south", dayStart:"08:00" },
+    { id:"D14", date:"2026-11-26", sleeping:null,                                 base:"Flying home",      summary:"Leave 18:40, land SF 17:00 the same day", dayStart:"18:40" }
+  ],
+
+  // The day plan: what was decided, in order. Durations are the gaps between
+  // the times already in the data, so the computed schedule reproduces them.
+  itinerary: [
+    { id:"I01", name:"SFO → SGN", date:"2026-11-13", order:1, type:"travel", durationMin:165, durationMode:"estimated", mode:"other", lat:37.6189, lng:-122.375, toLat:10.8188, toLng:106.652 },
+    { id:"I02", name:"Banh Mi Hong Hoa", date:"2026-11-13", order:2, type:"stop", durationMin:15, durationMode:"estimated", lat:10.7715226, lng:106.6923968, foodId:"E01" },
+    { id:"I03", name:"Tao Đàn Park", date:"2026-11-13", order:3, type:"stop", durationMin:75, durationMode:"estimated", lat:10.7755796, lng:106.6920797, placeId:"P01" },
+    { id:"I04", name:"Walk around Phú Nhuận", date:"2026-11-13", order:4, type:"stop", durationMin:90, durationMode:"estimated", lat:10.795, lng:106.675, areaRadius:750, placeId:"P02" },
+    { id:"I05", name:"Vietnamese coffee", date:"2026-11-13", order:5, type:"stop", durationMin:90, durationMode:"estimated", lat:10.778, lng:106.695, foodId:"E02" },
+    { id:"I06", name:"Cơm Tấm Ba Ghiền", date:"2026-11-13", order:6, type:"stop", durationMin:210, durationMode:"estimated", lat:10.7944422, lng:106.6693599, foodId:"E03" },
+    { id:"I07", name:"Walk around District 3", date:"2026-11-13", order:7, type:"stop", durationMin:45, durationMode:"estimated", lat:10.7827, lng:106.694, areaRadius:700, placeId:"P03" },
+    { id:"I08", name:"War Remnants Museum", date:"2026-11-13", order:8, type:"stop", durationMin:90, durationMode:"estimated", lat:10.7795106, lng:106.6920916, placeId:"P04" },
+    { id:"I09", name:"The Cafe Apartments", date:"2026-11-13", order:9, type:"stop", durationMin:75, durationMode:"estimated", lat:10.7740888, lng:106.7040596, placeId:"P05" },
+    { id:"I10", name:"Pho Hoa Pasteur", date:"2026-11-13", order:10, type:"stop", durationMin:0, durationMode:"estimated", lat:10.7866905, lng:106.6892627, foodId:"E04" },
+    { id:"I11", name:"Bánh Xèo 46A", date:"2026-11-13", order:11, type:"stop", durationMin:90, durationMode:"estimated", lat:10.7895674, lng:106.6913428, foodId:"E05" },
+    { id:"I12", name:"District 1 evening walk", date:"2026-11-13", order:12, type:"stop", durationMin:60, durationMode:"estimated", lat:10.776, lng:106.703, areaRadius:450, placeId:"P06" },
+    { id:"I13", name:"Bánh Canh Cua 14", date:"2026-11-14", order:1, type:"stop", durationMin:90, durationMode:"estimated", lat:10.759495, lng:106.68017, foodId:"E06" },
+    { id:"I14", name:"Walk around Chợ Lớn / District 5", date:"2026-11-14", order:2, type:"stop", durationMin:75, durationMode:"estimated", lat:10.7535, lng:106.6585, areaRadius:900, placeId:"P07" },
+    { id:"I15", name:"Bình Tây Market", date:"2026-11-14", order:3, type:"stop", durationMin:255, durationMode:"estimated", lat:10.7493638, lng:106.6510455, placeId:"P08" },
+    { id:"I16", name:"Saigon Michelin-rated street food tour", date:"2026-11-14", order:4, type:"stop", durationMin:270, durationMode:"estimated", lat:10.772, lng:106.698, placeId:"P09" },
+    { id:"I17", name:"Kieu Bao Barbecue Rice Noodles", date:"2026-11-14", order:5, type:"stop", durationMin:60, durationMode:"estimated", lat:10.7652819, lng:106.694635, foodId:"E07" },
+    { id:"I18", name:"Explore the quieter side of District 1", date:"2026-11-14", order:6, type:"stop", durationMin:30, durationMode:"estimated", lat:10.77, lng:106.699, areaRadius:600, placeId:"P10" },
+    { id:"I19", name:"Vietnamese dessert / chè", date:"2026-11-14", order:7, type:"stop", durationMin:45, durationMode:"estimated", lat:10.77, lng:106.695, foodId:"E08" },
+    { id:"I20", name:"Cocktail bar", date:"2026-11-14", order:8, type:"stop", durationMin:60, durationMode:"estimated", lat:10.7735, lng:106.7005, foodId:"E09" },
+    { id:"I21", name:"SGN → HAN", date:"2026-11-15", order:1, type:"travel", durationMin:360, durationMode:"estimated", mode:"other", lat:10.8188, lng:106.652, toLat:21.2212, toLng:105.8072 },
+    { id:"I22", name:"Walk the French Quarter and Old Quarter", date:"2026-11-15", order:2, type:"stop", durationMin:120, durationMode:"estimated", lat:21.03, lng:105.85, areaRadius:800, placeId:"P11" },
+    { id:"I23", name:"MAY Kitchenware", date:"2026-11-15", order:3, type:"stop", durationMin:210, durationMode:"estimated", lat:21.0420348, lng:105.8483295, foodId:"E10" },
+    { id:"I24", name:"Tầm Vị", date:"2026-11-15", order:4, type:"stop", durationMin:150, durationMode:"estimated", lat:21.0290273, lng:105.8394556, foodId:"E11" },
+    { id:"I25", name:"Savage Hanoi", date:"2026-11-15", order:5, type:"stop", durationMin:60, durationMode:"estimated", lat:21.0640909, lng:105.8268698, foodId:"E12" },
+    { id:"I26", name:"Unmute", date:"2026-11-15", order:6, type:"stop", durationMin:60, durationMode:"estimated", lat:21.031, lng:105.854, foodId:"E13" },
+    { id:"I27", name:"Bánh Cuốn Bà Xuân", date:"2026-11-16", order:1, type:"stop", durationMin:120, durationMode:"estimated", lat:21.0421987, lng:105.8477122, foodId:"E14" },
+    { id:"I28", name:"Bat Trang Pottery Museum", date:"2026-11-16", order:2, type:"stop", durationMin:150, durationMode:"estimated", lat:20.9730338, lng:105.9162085, placeId:"P12" },
+    { id:"I29", name:"Tony Eats Hanoi street food tour", date:"2026-11-16", order:3, type:"stop", durationMin:480, durationMode:"estimated", lat:21.0345, lng:105.851, placeId:"P13" },
+    { id:"I30", name:"Sleeper bus to Ha Giang", date:"2026-11-16", order:4, type:"travel", durationMin:390, durationMode:"manual", mode:"bus", lat:21.0338, lng:105.85, toLat:22.8233, toLng:104.9784 },
+    { id:"I31", name:"Ha Giang loop — day 1", date:"2026-11-17", order:1, type:"travel", durationMin:60, durationMode:"estimated", mode:"motorbike", lat:22.8233, lng:104.9784, toLat:23.2764, toLng:105.3636 },
+    { id:"I32", name:"Ha Giang loop — day 2 (Lung Cu day trip)", date:"2026-11-18", order:1, type:"travel", durationMin:60, durationMode:"estimated", mode:"motorbike", lat:23.2764, lng:105.3636, toLat:23.3652, toLng:105.3192 },
+    { id:"I33", name:"Ha Giang loop — day 3", date:"2026-11-19", order:1, type:"travel", durationMin:60, durationMode:"estimated", mode:"motorbike", lat:23.2764, lng:105.3636, toLat:22.8833, toLng:105.15 },
+    { id:"I34", name:"Ha Giang loop — day 4", date:"2026-11-20", order:1, type:"travel", durationMin:630, durationMode:"estimated", mode:"motorbike", lat:22.8833, lng:105.15, toLat:22.8233, toLng:104.9784 },
+    { id:"I35", name:"Sleeper bus to Ninh Binh", date:"2026-11-20", order:2, type:"travel", durationMin:390, durationMode:"manual", mode:"bus", lat:22.8233, lng:104.9784, toLat:20.2244, toLng:105.9167 },
+    { id:"I36", name:"Hang Mua", date:"2026-11-21", order:1, type:"stop", durationMin:75, durationMode:"estimated", lat:20.232092, lng:105.9405632, placeId:"P14" },
+    { id:"I37", name:"Hang Mua lotus field", date:"2026-11-21", order:2, type:"stop", durationMin:75, durationMode:"estimated", lat:20.2315, lng:105.9398, placeId:"P15" },
+    { id:"I38", name:"Bich Dong Pagoda", date:"2026-11-21", order:3, type:"stop", durationMin:105, durationMode:"estimated", lat:20.2175782, lng:105.9156582, placeId:"P16" },
+    { id:"I39", name:"Buffalo Cave", date:"2026-11-21", order:4, type:"stop", durationMin:75, durationMode:"estimated", lat:20.22, lng:105.93, placeId:"P17" },
+    { id:"I40", name:"An Phong restaurant", date:"2026-11-21", order:5, type:"stop", durationMin:150, durationMode:"estimated", lat:20.2165673, lng:105.9382446, foodId:"E15" },
+    { id:"I41", name:"Trang An boat tour", date:"2026-11-21", order:6, type:"stop", durationMin:240, durationMode:"estimated", lat:20.2527855, lng:105.918304, placeId:"P18" },
+    { id:"I42", name:"Night market Pho Co Hoa Lu", date:"2026-11-21", order:7, type:"stop", durationMin:120, durationMode:"estimated", lat:20.2633839, lng:105.9681679, foodId:"E16" },
+    { id:"I43", name:"Wine At Where", date:"2026-11-21", order:8, type:"stop", durationMin:60, durationMode:"estimated", lat:20.224, lng:105.9175, foodId:"E17" },
+    { id:"I44", name:"Limousine bus to Noi Bai", date:"2026-11-22", order:1, type:"travel", durationMin:180, durationMode:"manual", mode:"bus", lat:20.2244, lng:105.9167, toLat:21.2212, toLng:105.8072 },
+    { id:"I45", name:"HAN → DAD", date:"2026-11-22", order:2, type:"travel", durationMin:135, durationMode:"estimated", mode:"other", lat:21.2212, lng:105.8072, toLat:16.0439, toLng:108.1994 },
+    { id:"I46", name:"Bếp Cuốn Đà Nẵng", date:"2026-11-22", order:3, type:"stop", durationMin:120, durationMode:"estimated", lat:16.0579628, lng:108.2451505, foodId:"E18" },
+    { id:"I47", name:"Airport transfer to Hoi An", date:"2026-11-22", order:4, type:"travel", durationMin:60, durationMode:"manual", mode:"taxi", lat:16.0439, lng:108.1994, toLat:15.8801, toLng:108.338 },
+    { id:"I48", name:"Lantern making class", date:"2026-11-23", order:1, type:"stop", durationMin:420, durationMode:"estimated", lat:15.8795, lng:108.3285, placeId:"P19" },
+    { id:"I49", name:"Boat ride and lantern release", date:"2026-11-23", order:2, type:"stop", durationMin:150, durationMode:"estimated", lat:15.877, lng:108.33, placeId:"P20" },
+    { id:"I50", name:"Explore the Ancient Town", date:"2026-11-23", order:3, type:"stop", durationMin:45, durationMode:"estimated", lat:15.8775, lng:108.329, areaRadius:450, placeId:"P21" },
+    { id:"I51", name:"Walk to the night market", date:"2026-11-23", order:4, type:"travel", durationMin:15, durationMode:"manual", mode:"walk" },
+    { id:"I52", name:"Hoi An night market", date:"2026-11-23", order:5, type:"stop", durationMin:60, durationMode:"estimated", lat:15.8755, lng:108.3285, foodId:"E19" },
+    { id:"I53", name:"Market Bar", date:"2026-11-23", order:6, type:"stop", durationMin:60, durationMode:"estimated", lat:15.8767267, lng:108.3327747, foodId:"E20" },
+    { id:"I54", name:"Eight Days a Week", date:"2026-11-23", order:7, type:"stop", durationMin:60, durationMode:"estimated", lat:15.9092216, lng:108.3459392, foodId:"E21" },
+    { id:"I55", name:"Bike or walk around the old town", date:"2026-11-24", order:1, type:"stop", durationMin:90, durationMode:"estimated", lat:15.878, lng:108.3285, areaRadius:500, placeId:"P22" },
+    { id:"I56", name:"Cooking class", date:"2026-11-24", order:2, type:"stop", durationMin:150, durationMode:"estimated", lat:15.88, lng:108.33, placeId:"P23" },
+    { id:"I57", name:"Hoi An Market food hall", date:"2026-11-24", order:3, type:"stop", durationMin:45, durationMode:"estimated", lat:15.8775, lng:108.33, foodId:"E22" },
+    { id:"I58", name:"Moments Coffee", date:"2026-11-24", order:4, type:"stop", durationMin:45, durationMode:"estimated", lat:15.8788, lng:108.3275, foodId:"E23" },
+    { id:"I59", name:"Museum of Trade Ceramics", date:"2026-11-24", order:5, type:"stop", durationMin:45, durationMode:"estimated", lat:15.8772894, lng:108.3295509, placeId:"P24" },
+    { id:"I60", name:"Precious Heritage Museum", date:"2026-11-24", order:6, type:"stop", durationMin:45, durationMode:"estimated", lat:15.8771398, lng:108.3342634, placeId:"P25" },
+    { id:"I61", name:"An Bang Beach", date:"2026-11-24", order:7, type:"stop", durationMin:75, durationMode:"estimated", lat:15.9136072, lng:108.3406489, placeId:"P26" },
+    { id:"I62", name:"Roving Chill House", date:"2026-11-24", order:8, type:"stop", durationMin:75, durationMode:"estimated", lat:15.8924806, lng:108.3521813, foodId:"E24" },
+    { id:"I63", name:"Hoi An Lune Center bamboo circus", date:"2026-11-24", order:9, type:"stop", durationMin:120, durationMode:"estimated", lat:15.8750879, lng:108.3289792, placeId:"P27" },
+    { id:"I64", name:"Quan Cao Lau Ba Le", date:"2026-11-24", order:10, type:"stop", durationMin:90, durationMode:"estimated", lat:15.8794816, lng:108.3294126, foodId:"E25" },
+    { id:"I65", name:"Hem Hoi An", date:"2026-11-24", order:11, type:"stop", durationMin:60, durationMode:"estimated", lat:15.879, lng:108.3268, foodId:"E26" },
+    { id:"I66", name:"Walk to the covered bridge", date:"2026-11-25", order:1, type:"travel", durationMin:10, durationMode:"manual", mode:"walk" },
+    { id:"I67", name:"Japanese Covered Bridge", date:"2026-11-25", order:2, type:"stop", durationMin:0, durationMode:"estimated", lat:15.8770873, lng:108.3260704, placeId:"P28" },
+    { id:"I68", name:"Marble Mountains", date:"2026-11-25", order:3, type:"stop", durationMin:20, durationMode:"estimated", lat:16.0037104, lng:108.2631605, placeId:"P33" },
+    { id:"I69", name:"Ba Mu Temple Gate", date:"2026-11-25", order:4, type:"stop", durationMin:20, durationMode:"estimated", lat:15.8781334, lng:108.3271569, placeId:"P29" },
+    { id:"I70", name:"Phap Bao Pagoda", date:"2026-11-25", order:5, type:"stop", durationMin:20, durationMode:"estimated", lat:15.881, lng:108.327, placeId:"P30" },
+    { id:"I71", name:"Confucius Temple", date:"2026-11-25", order:6, type:"stop", durationMin:20, durationMode:"estimated", lat:15.8798623, lng:108.3229872, placeId:"P31" },
+    { id:"I72", name:"Ancient House", date:"2026-11-25", order:7, type:"stop", durationMin:55, durationMode:"estimated", lat:15.8764821, lng:108.3277659, placeId:"P32" },
+    { id:"I73", name:"Airport transfer to Da Nang", date:"2026-11-25", order:8, type:"travel", durationMin:60, durationMode:"manual", mode:"taxi", lat:15.8801, lng:108.338, toLat:16.0439, toLng:108.1994 },
+    { id:"I74", name:"DAD → SGN", date:"2026-11-25", order:9, type:"travel", durationMin:60, durationMode:"estimated", mode:"other", lat:16.0439, lng:108.1994, toLat:10.8188, toLng:106.652 },
+    { id:"I75", name:"SGN → SFO", date:"2026-11-26", order:1, type:"travel", durationMin:60, durationMode:"estimated", mode:"other", lat:10.8188, lng:106.652, toLat:37.6189, toLng:-122.375 }
   ],
 
   flights: [
@@ -741,7 +967,7 @@ window.AIRPORTS = {
   // That is the only line that changes when the Notion side is ready.
   const SOURCE = 'sample';
   const API = '/.netlify/functions/get-trip-data';
-  const SOURCES = ['days', 'flights', 'stays', 'places', 'food', 'transport'];
+  const SOURCES = ['days', 'flights', 'stays', 'places', 'food', 'transport', 'itinerary'];
 
   /* ── STATE (declared before boot — do not move below any function call) ── */
 
@@ -749,7 +975,7 @@ window.AIRPORTS = {
   let model = null;          // { trip, days[], items[], byId }
   let selectedDate = 'all';  // ISO date or 'all'
   let activeId = null;
-  let view = 'map';          // 'map' | 'list'
+  let view = 'build';        // 'build' | 'map' | 'list'
   let dayLayer = null;       // LayerGroup rebuilt on every day change
   let bootError = null;
   let colourMode = 'type';   // 'type' | 'time' — what the NODE fill encodes
@@ -764,6 +990,17 @@ window.AIRPORTS = {
   let pathLayer = null;      // draft paths live here, separate from the day layer
   let editSecret = '';       // passphrase for the write endpoint, if set
   let saving = false;
+  /* ── Build-tab state. The plan is the day as decided; the catalogue is only
+     what exists. See the BUILD section. */
+  let plan = [];             // ordered entries, all days
+  let planFromNotion = [];   // the last thing Notion said, for Discard
+  let planItems = [];        // the plan projected into map-item shape
+  let planIndex = {};        // which model.byId keys that projection owns
+  let planDeleted = [];      // Notion ids removed here, not yet archived there
+  let dayStartEdits = {};    // date -> "HH:MM", edits to a day's start time
+  let buildFilter = '';      // the add-drawer search box
+  let picking = null;        // waiting for a map click to place a new stop
+  let addOpen = false;       // the add drawer, folded away by default
 
   const el = {};             // cached DOM refs, filled in cacheDom()
 
@@ -817,6 +1054,8 @@ window.AIRPORTS = {
   const LS_TIMES = 'trip.times.v1';
   const LS_PATHS = 'trip.paths.v1';
   const LS_SECRET = 'trip.secret.v1';
+  const LS_PLAN = 'trip.plan.v1';
+  const LS_ADDOPEN = 'trip.addopen.v1';
 
   const SAVE_API = '/.netlify/functions/save-trip-data';
   // Notion caps a rich-text value at 2000 characters, which is about 95
@@ -1064,7 +1303,8 @@ window.AIRPORTS = {
 
   function buildModel(raw) {
     const days = (raw.days || []).map(function (d, i) {
-      return { date: d.date, n: i + 1, sleeping: d.sleeping, base: d.base, summary: d.summary };
+      return { id: d.id || null, date: d.date, n: i + 1, sleeping: d.sleeping,
+               base: d.base, summary: d.summary, dayStart: d.dayStart || null };
     });
     const items = [];
 
@@ -1379,7 +1619,8 @@ window.AIRPORTS = {
     pathLayer = L.layerGroup().addTo(map);
 
     map.on('click', function (e) {
-      if (drawing) addDrawPoint(e.latlng.lat, e.latlng.lng, false);
+      if (drawing) { addDrawPoint(e.latlng.lat, e.latlng.lng, false); return; }
+      if (picking) { finishPick(e.latlng.lat, e.latlng.lng); return; }
     });
 
     // Cluster membership is a function of zoom, so it has to be recomputed on
@@ -1511,14 +1752,15 @@ window.AIRPORTS = {
   }
 
   function nodeIcon(item, kind) {
-    const cls = ['node', 'node--' + kind];
+    const cls = ['node', 'node--' + (kind === 'cand' ? 'place node--cand' : kind)];
     if (item.booked === false) cls.push('is-unbooked');
     if (item.id === activeId) cls.push('is-active');
     return L.divIcon({
       className: '',
       iconSize: [22, 22], iconAnchor: [11, 11],
       html: '<div class="' + cls.join(' ') + '" style="--c:' + nodeColor(item) + '">' +
-            '<span class="node__ring"></span><span class="node__dot"></span></div>'
+            '<span class="node__ring"></span><span class="node__dot"></span>' +
+            (item.seq ? '<span class="node__n">' + item.seq + '</span>' : '') + '</div>'
     });
   }
 
@@ -1531,6 +1773,8 @@ window.AIRPORTS = {
                  // path — the behaviour asked for, and it beats trying to click
                  // exactly on a marker's centre by hand.
                  if (drawing) { addDrawPoint(lat, lng, true); return; }
+                 if (picking) { finishPick(lat, lng); return; }
+                 if (kind === 'cand') { addFromCatalogue(item.id); return; }
                  select(item.id);
                });
     m.addTo(dayLayer);
@@ -1629,8 +1873,15 @@ window.AIRPORTS = {
   function renderMap(fit) {
     if (!map) return;
     dayLayer.clearLayers();
-    const list = itemsOn(selectedDate);
+    const list = stageItems(selectedDate);
     const bounds = [];
+
+    // Candidates go down first so a planned node always sits on top of the
+    // faint version of itself when the two nearly coincide.
+    candidates(selectedDate).forEach(function (i) {
+      addNode(i, i.lat, i.lng, 'cand', i.title + ' — click to add');
+      bounds.push([i.lat, i.lng]);
+    });
 
     // Legs first: their endpoints are drawn as hubs and never clustered.
     // A path that has been saved exists twice: as a local draft (still
@@ -1666,8 +1917,26 @@ window.AIRPORTS = {
       else addCluster(group);
     });
 
-    if (fit && bounds.length) {
-      map.fitBounds(L.latLngBounds(bounds), { padding: [70, 70], maxZoom: 12, animate: false });
+    /* What to frame. In the Build view, fitting everything means fitting the
+       flight that got you here — one transpacific leg and the whole day
+       collapses into a single dot in a corner. The stops are what is being
+       planned, so they are what the view is for. */
+    let frame = bounds;
+    if (view === 'build') {
+      const stops = [];
+      list.forEach(function (i) {
+        if (i.geo !== 'point' || i.lat == null) return;
+        stops.push([i.lat, i.lng]);
+        if (i.areaRadius) {
+          const dLat = i.areaRadius / 111320;
+          const dLng = i.areaRadius / (111320 * Math.cos(i.lat * R));
+          stops.push([i.lat - dLat, i.lng - dLng], [i.lat + dLat, i.lng + dLng]);
+        }
+      });
+      if (stops.length) frame = stops;
+    }
+    if (fit && frame.length) {
+      map.fitBounds(L.latLngBounds(frame), { padding: [70, 70], maxZoom: 15, animate: false });
     }
     map.invalidateSize();
   }
@@ -1892,11 +2161,12 @@ window.AIRPORTS = {
   async function saveToNotion() {
     if (saving) return;
     const n = pendingCount();
-    if (!n.total) return;
+    if (!n.total && !planPending()) return;
     if (!editSecret) { promptSecret(); if (!editSecret) return; }
 
     saving = true;
     renderTlFoot();
+    renderBuildFoot();
 
     const times = Object.keys(timeOverrides).map(function (id) {
       const i = model.byId[id];
@@ -1908,7 +2178,7 @@ window.AIRPORTS = {
       const pts = simplifyForStorage(p.points);
       return {
         id: p.id, notionId: p.notionId || null,
-        name: p.name, date: p.date, time: p.time || null,
+        name: p.name, mode: p.mode || 'walk', date: p.date, time: p.time || null,
         fromName: p.fromName || null, toName: p.toName || null,
         miles: pts.length > 1 ? parseFloat(routeMiles(pts)) : null,
         route: pts.map(function (q) { return q[0].toFixed(5) + ',' + q[1].toFixed(5); }).join('; ')
@@ -1920,11 +2190,15 @@ window.AIRPORTS = {
       res = await fetch(SAVE_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: editSecret, times: times, paths: paths })
+        body: JSON.stringify({
+          secret: editSecret, times: times, paths: paths,
+          plan: planPayload(), dayStarts: dayStartPayload(),
+          deleteEntryIds: planDeleted.slice()
+        })
       });
       json = await res.json();
     } catch (e) {
-      saving = false; renderTlFoot();
+      saving = false; renderTlFoot(); renderBuildFoot();
       toast('Could not reach the save endpoint. Is save-trip-data deployed?');
       return;
     }
@@ -1934,12 +2208,12 @@ window.AIRPORTS = {
     if (res.status === 401) {
       editSecret = '';
       lsSet(LS_SECRET, '');
-      renderTlFoot();
+      renderTlFoot(); renderBuildFoot();
       toast('Wrong passphrase — cleared it, set it again.');
       return;
     }
     if (!json || (!json.applied && !json.failed)) {
-      renderTlFoot();
+      renderTlFoot(); renderBuildFoot();
       toast((json && json.error) || 'Save failed with an unexpected response.');
       return;
     }
@@ -1961,10 +2235,26 @@ window.AIRPORTS = {
           p.points = simplifyForStorage(p.points);
           p.anchors = p.anchors && p.anchors.length <= p.points.length ? p.anchors : p.points.slice();
         }
+      } else if (a.type === 'entry') {
+        const e = plan.find(function (x) { return x.id === a.id; });
+        if (e) { e.notionId = a.notionId; e.dirty = false; }
+      } else if (a.type === 'entryDelete') {
+        planDeleted = planDeleted.filter(function (x) { return x !== a.notionId; });
+      } else if (a.type === 'dayStart') {
+        const d = model.days.find(function (x) { return x.date === a.date; });
+        if (d) d.dayStart = dayStartEdits[a.date];
+        delete dayStartEdits[a.date];
       }
+    });
+    // Notion is now the source of truth for everything that landed, so the
+    // Discard baseline moves with it.
+    planFromNotion = plan.filter(function (e) { return !e.dirty; }).map(function (e) {
+      const c = {}; Object.keys(e).forEach(function (k) { c[k] = e[k]; });
+      return c;
     });
     lsSet(LS_TIMES, timeOverrides);
     savePaths();
+    savePlanLocal();
     refreshAll();
 
     const failed = json.failed || [];
@@ -1990,7 +2280,7 @@ window.AIRPORTS = {
   /* ── DETAIL PANEL ──────────────────────────────────────────────────────── */
 
   function select(id) {
-    if (drawing) return;            // clicks belong to the draw tool
+    if (drawing || picking) return; // clicks belong to the draw or pick tool
     activeId = id;
     stackIds = null;
     editingTimeFor = null;
@@ -2070,10 +2360,20 @@ window.AIRPORTS = {
     return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
 
-  function startDraw() {
+  // Drawing for a plan entry traces that leg; drawing for nobody makes a
+  // standalone path. Same tool, and the only difference is where it lands.
+  function drawForEntry(entryId) {
+    const e = plan.find(function (x) { return x.id === entryId; });
+    if (!e) return;
+    if (drawing) cancelDraw();
+    startDraw(entryId);
+    toast('Click the leg: start, any bends, then End path.');
+  }
+
+  function startDraw(forEntry) {
     if (drawing) return;
     editingPathId = null;
-    drawing = { id: newId(), points: [], anchors: [], pending: 0 };
+    drawing = { id: newId(), points: [], anchors: [], pending: 0, forEntry: forEntry || null };
     el.stage.classList.add('drawing');
     updateDrawBar();
     renderPaths();
@@ -2169,6 +2469,25 @@ window.AIRPORTS = {
 
   function endDraw() {
     if (!drawing || drawing.anchors.length < 2) return;
+
+    // Tracing a planned leg: the geometry belongs to that entry, not to a
+    // separate path row, so the plan keeps one object per leg.
+    if (drawing.forEntry) {
+      const e = plan.find(function (x) { return x.id === drawing.forEntry; });
+      const pts0 = drawing.points.slice();
+      drawing = null;
+      el.stage.classList.remove('drawing');
+      if (e) {
+        e.route = pts0;
+        e.lat = pts0[0][0]; e.lng = pts0[0][1];
+        e.toLat = pts0[pts0.length - 1][0]; e.toLng = pts0[pts0.length - 1][1];
+        if (e.durationMode !== 'manual') e.durationMin = null;   // re-estimate off the real length
+        markPlanDirty(e);
+        planCommit('Leg traced — ' + routeMiles(pts0) + ' mi.');
+      } else { renderPaths(); }
+      return;
+    }
+
     const day = selectedDate === 'all' ? (model.days[0] && model.days[0].date) : selectedDate;
     const pts = drawing.points;
     const fromName = nearestName(pts[0]);
@@ -2181,6 +2500,7 @@ window.AIRPORTS = {
     draftPaths.push({
       id: drawing.id,
       name: label,
+      mode: 'walk',
       date: day,
       fromName: fromName,
       toName: toName,
@@ -2222,7 +2542,7 @@ window.AIRPORTS = {
 
   function savePaths() {
     lsSet(LS_PATHS, draftPaths.map(function (p) {
-      return { id: p.id, name: p.name, date: p.date, points: p.points,
+      return { id: p.id, name: p.name, mode: p.mode || 'walk', date: p.date, points: p.points,
                anchors: p.anchors, auto: p.auto,
                fromName: p.fromName || null, toName: p.toName || null,
                notionId: p.notionId || null, pendingEdit: !!p.pendingEdit };
@@ -2271,6 +2591,18 @@ window.AIRPORTS = {
     if (editingPathId) toast('Drag a vertex to move it. Click one to delete it.');
   }
 
+  /* Which drawn paths belong on screen right now. A path is tied to the day it
+     was drawn on, exactly like everything else on the map — carrying all of
+     them onto every day turned the trip into a tangle by about day four.
+
+     Two deliberate exceptions: the whole-trip view shows all of them, and a
+     path with no date at all is always shown rather than becoming invisible and
+     unreachable. */
+  function pathsOnDay() {
+    if (selectedDate === 'all') return draftPaths;
+    return draftPaths.filter(function (p) { return !p.date || p.date === selectedDate; });
+  }
+
   // Draft paths render into their own layer so a day change, a zoom-driven
   // recluster or a redraw of the day never wipes them.
   function renderPaths() {
@@ -2281,15 +2613,17 @@ window.AIRPORTS = {
       ? [{ id: drawing.id, name: 'drawing', points: drawing.points, anchors: drawing.anchors, live: true }]
       : [];
 
-    live.concat(draftPaths).forEach(function (p) {
+    live.concat(pathsOnDay()).forEach(function (p) {
       if (!p.points || p.points.length < 1) return;
       if (p.points.length > 1) {
         L.polyline(p.points, {
           pane: 'legCase', color: '#060b0f', weight: 8.5, opacity: 0.85, interactive: false
         }).addTo(pathLayer);
+        const ms = MODES[p.mode || 'walk'] || MODES.other;
         L.polyline(p.points, {
-          pane: 'legs', color: p.live ? '#7fd4ff' : '#9ad9f5', weight: 4,
-          opacity: 1, dashArray: p.live ? '6 5' : null,
+          pane: 'legs', color: p.live ? '#7fd4ff' : '#9ad9f5',
+          weight: p.live ? 4 : Math.max(3, ms.weight), lineCap: ms.cap,
+          opacity: 1, dashArray: p.live ? '6 5' : ms.dash,
           interactive: !p.live
         }).on('click', function () { if (!p.live) toggleEditPath(p.id); })
           .bindTooltip(p.live ? 'Drawing…' : p.name, { className: 'tip', sticky: true })
@@ -2355,8 +2689,19 @@ window.AIRPORTS = {
   function renderPathList() {
     const box = $('pathList');
     if (!box) return;
+    const mine = pathsOnDay();
+    const elsewhere = draftPaths.length - mine.length;
     if (!draftPaths.length) { box.innerHTML = ''; return; }
-    box.innerHTML = '<div class="paths">' + draftPaths.map(function (p) {
+    if (!mine.length) {
+      // Say so rather than showing nothing: a path you drew yesterday still
+      // exists, and silence looks like it was lost.
+      box.innerHTML = '<div class="paths"><div class="paths__none">' +
+        elsewhere + ' drawn path' + (elsewhere === 1 ? '' : 's') +
+        ' on other days. Pick that day, or Trip, to see ' +
+        (elsewhere === 1 ? 'it' : 'them') + '.</div></div>';
+      return;
+    }
+    box.innerHTML = '<div class="paths">' + mine.map(function (p) {
       const mi = p.points.length > 1 ? routeMiles(p.points) + ' mi' : '';
       const synced = !!p.notionId;
       return '<div class="paths__row">' +
@@ -2366,11 +2711,907 @@ window.AIRPORTS = {
           esc(p.name) + '<span class="paths__mi">' + esc(mi) +
           (synced ? ' · in Notion' : '') +
           (p.id === editingPathId ? ' · editing' : '') + '</span></button>' +
+        '<select data-path-mode="' + esc(p.id) + '" title="Mode of transport" ' +
+          'style="background:var(--ink);border:1px solid var(--rule);border-radius:2px;' +
+          'color:var(--paper);font:inherit;font-size:11.5px;padding:1px 3px">' +
+          modeOptions(p.mode || 'walk') + '</select>' +
         '<button class="btn btn--ghost" data-path-copy="' + esc(p.id) + '" ' +
           'title="Copy as a Route value for Notion">Copy</button>' +
         '<button class="paths__x" data-path-del="' + esc(p.id) + '" aria-label="Delete path">&times;</button>' +
         '</div>';
-    }).join('') + '</div>';
+    }).join('') +
+    (elsewhere ? '<div class="paths__none">+ ' + elsewhere + ' on other days</div>' : '') +
+    '</div>';
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────
+     BUILD — the day as something you assemble rather than read.
+
+     The catalogue (Places, Food, Stays) says what exists. The plan says what
+     was decided, in what order, and for how long. They are separate on
+     purpose: one Airbnb row can appear three times in a day — arrive, drop
+     bags, sleep — which a single `When` column on the Place could never say.
+
+     Nothing here stores a clock time. Each entry stores only a duration, and
+     the schedule is computed forward from the day's start. Move a stop and
+     everything after it moves with it, which is the whole point.
+     ────────────────────────────────────────────────────────────────────── */
+
+  // The six the day is actually built from, then the long-haul extras. Flight
+  // is deliberately absent: a flight is a Flights row, not a leg you draw.
+  const BUILD_MODES = ['walk', 'bike', 'motorbike', 'taxi', 'bus', 'train'];
+  const EXTRA_MODES = ['car', 'ferry', 'other'];
+  const ALL_BUILD_MODES = BUILD_MODES.concat(EXTRA_MODES);
+
+  const DEFAULT_START = 8;        // 08:00 when a day says nothing
+  const DEFAULT_STOP_MIN = 60;
+  const DEFAULT_AREA_M = 600;
+
+  function planKey() { return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  /* ── Reading the plan out of Notion ──────────────────────────────────── */
+
+  function planFromRaw(raw) {
+    return (raw.itinerary || []).map(function (r, idx) {
+      return {
+        id: planKey() + idx,
+        notionId: r.id,
+        date: r.date,
+        order: r.order != null ? r.order : idx + 1,
+        type: r.type === 'travel' ? 'travel' : 'stop',
+        name: r.name || null,
+        refId: r.placeId || r.foodId || r.stayId || null,
+        lat: r.lat, lng: r.lng,
+        toLat: r.toLat, toLng: r.toLng,
+        areaRadius: (r.areaRadius != null && r.areaRadius > 0) ? r.areaRadius : null,
+        durationMin: r.durationMin,
+        durationMode: r.durationMode === 'manual' ? 'manual' : 'auto',
+        mode: r.mode || null,
+        route: parseRoute(r.route),
+        notes: r.notes || null,
+        dirty: false
+      };
+    });
+  }
+
+  /* Merging the browser's copy with Notion's.
+
+     Three cases, and each has to be handled or an edit quietly disappears:
+     a row edited here is kept over Notion's version; a row created here and
+     not yet saved has no Notion id and is kept as-is; a row whose Notion id
+     has gone was deleted upstream, so the local copy goes too rather than
+     being re-created on the next save. */
+  function mergePlan(fromNotion, stored) {
+    if (!Array.isArray(stored) || !stored.length) return fromNotion;
+
+    const live = {};
+    fromNotion.forEach(function (e) { live[e.notionId] = e; });
+    const seen = {};
+    const out = [];
+
+    stored.forEach(function (e) {
+      if (!e || typeof e !== 'object') return;
+      if (!e.notionId) { out.push(normaliseEntry(e)); return; }   // new here
+      if (!live[e.notionId]) return;                              // gone upstream
+      seen[e.notionId] = true;
+      out.push(e.dirty ? normaliseEntry(e) : live[e.notionId]);
+    });
+    fromNotion.forEach(function (e) { if (!seen[e.notionId]) out.push(e); });
+    return out;
+  }
+
+  // localStorage is this browser's own, but it is still untrusted input: a
+  // hand-edited or half-written entry must degrade, not throw.
+  function normaliseEntry(e) {
+    /* Blank must stay blank. Number(null) is 0, not NaN, so a plain
+       Number() coercion here turned every empty coordinate into 0°N 0°E — a
+       point in the Atlantic — and every open-ended duration into zero minutes,
+       on the first reload after an edit. Most stops carry no coordinates of
+       their own (they borrow the catalogue row's), so that was most of them. */
+    const num = function (v) {
+      if (v === null || v === undefined || v === '') return null;
+      const x = Number(v);
+      return isFinite(x) ? x : null;
+    };
+    const n = num(e.durationMin);
+    const pt = num;
+    return {
+      id: typeof e.id === 'string' ? e.id : planKey(),
+      notionId: typeof e.notionId === 'string' ? e.notionId : null,
+      date: typeof e.date === 'string' ? e.date : null,
+      order: num(e.order) != null ? num(e.order) : 1,
+      type: e.type === 'travel' ? 'travel' : 'stop',
+      name: typeof e.name === 'string' ? e.name : null,
+      refId: typeof e.refId === 'string' ? e.refId : null,
+      lat: pt(e.lat), lng: pt(e.lng), toLat: pt(e.toLat), toLng: pt(e.toLng),
+      areaRadius: num(e.areaRadius) > 0 ? num(e.areaRadius) : null,
+      durationMin: n != null && n >= 0 ? Math.round(n) : null,
+      durationMode: e.durationMode === 'manual' ? 'manual' : 'auto',
+      mode: ALL_BUILD_MODES.indexOf(e.mode) !== -1 ? e.mode : null,
+      route: Array.isArray(e.route) && e.route.length > 1
+        ? e.route.filter(function (q) {
+            return Array.isArray(q) && q.length === 2 && isFinite(q[0]) && isFinite(q[1]) &&
+                   Math.abs(q[0]) <= 90 && Math.abs(q[1]) <= 180;
+          })
+        : null,
+      notes: typeof e.notes === 'string' ? e.notes : null,
+      dirty: !!e.dirty
+    };
+  }
+
+  function savePlanLocal() {
+    lsSet(LS_PLAN, {
+      entries: plan.map(function (e) {
+        const c = {}; Object.keys(e).forEach(function (k) { c[k] = e[k]; });
+        return c;
+      }),
+      deleted: planDeleted,
+      starts: dayStartEdits
+    });
+  }
+
+  function markPlanDirty(e) { e.dirty = true; }
+
+  /* ── The day's start time ────────────────────────────────────────────── */
+
+  function dayStartOf(date) {
+    if (dayStartEdits[date]) { const v = parseHM(dayStartEdits[date]); if (v != null) return v; }
+    const d = model.days.find(function (x) { return x.date === date; });
+    const v = d && parseHM(d.dayStart);
+    return v == null ? DEFAULT_START : v;
+  }
+
+  function dayStartStr(date) { return hmToStr(dayStartOf(date)); }
+
+  function setDayStart(date, hhmm) {
+    const v = parseHM(hhmm);
+    if (v == null) return;
+    dayStartEdits[date] = hmToStr(v);
+    savePlanLocal();
+    rebuildPlan();
+    refreshAll();
+  }
+
+  /* ── Travel estimates ────────────────────────────────────────────────── */
+
+  /* Speeds measured off this trip's own legs. A generic "bus = 18 mph" is a
+     city-bus number and useless for a Hanoi → Ha Giang sleeper; the trip
+     already records real durations for those, so use them. Only the long-haul
+     modes are calibrated this way — a 200-mile coach tells you nothing about
+     how fast you walk across a district. */
+  let speedCache = null;
+
+  function calibratedSpeeds() {
+    if (speedCache) return speedCache;
+    const buckets = {};
+    (model ? model.items : []).forEach(function (i) {
+      if (i.geo !== 'leg' || i.mode === 'flight') return;
+      if (i.durationMin == null || i.durationMin <= 0) return;
+      let mi = null;
+      if (i.route && i.route.length > 1) mi = parseFloat(routeMiles(i.route));
+      else if (i.from && i.to && i.from.lat != null && i.to.lat != null) {
+        mi = gcMilesExact([i.from.lat, i.from.lng], [i.to.lat, i.to.lng]) * DETOUR;
+      }
+      if (mi == null || mi < 1) return;
+      const mph = mi / (i.durationMin / 60);
+      if (!isFinite(mph) || mph < 1 || mph > 90) return;    // bad data, not a speed
+      (buckets[i.mode] = buckets[i.mode] || []).push(mph);
+    });
+    const out = {};
+    Object.keys(buckets).forEach(function (m) {
+      const a = buckets[m].slice().sort(function (x, y) { return x - y; });
+      out[m] = { mph: a[Math.floor(a.length / 2)], n: a.length };   // median
+    });
+    speedCache = out;
+    return out;
+  }
+
+  const CALIBRATED = { bus: 1, train: 1, ferry: 1 };
+
+  /* Below this, the trip's own legs do not describe the journey. Every bus on
+     this trip is an intercity coach averaging close to 40 mph; applying that to
+     a two-mile hop across Hanoi would make the bus beat the taxi, which is
+     nonsense. Long legs get the measured figure, short ones the city speed. */
+  const CALIBRATE_MIN_MI = 15;
+
+  function modeSpeed(mode, miles) {
+    const c = CALIBRATED[mode] ? calibratedSpeeds()[mode] : null;
+    if (c && (miles == null || miles >= CALIBRATE_MIN_MI)) return { mph: c.mph, n: c.n };
+    return { mph: SPEED_MPH[mode] || SPEED_MPH.other, n: 0 };
+  }
+
+  function entryPos(e) {
+    if (e.lat != null && e.lng != null) return [e.lat, e.lng];
+    if (e.route && e.route.length) return e.route[0];
+    const ref = e.refId && model.byId[e.refId];
+    if (ref && ref.lat != null) return [ref.lat, ref.lng];
+    return null;
+  }
+
+  function entryEndPos(e) {
+    if (e.type === 'travel') {
+      if (e.route && e.route.length > 1) return e.route[e.route.length - 1];
+      if (e.toLat != null && e.toLng != null) return [e.toLat, e.toLng];
+    }
+    return entryPos(e);
+  }
+
+  function entryName(e) {
+    if (e.name) return e.name;
+    const ref = e.refId && model.byId[e.refId];
+    if (ref) return ref.title;
+    return e.type === 'travel' ? (MODES[e.mode] || MODES.other).label : 'Stop';
+  }
+
+  // Miles for a travel entry: its own traced route if it has one, otherwise
+  // the straight line between the stops it sits between, padded for the fact
+  // that roads are not straight.
+  function travelMiles(e, before, after) {
+    if (e.route && e.route.length > 1) return parseFloat(routeMiles(e.route));
+    const a = (e.lat != null ? [e.lat, e.lng] : null) || (before && entryEndPos(before));
+    const b = (e.toLat != null ? [e.toLat, e.toLng] : null) || (after && entryPos(after));
+    if (!a || !b) return null;
+    return gcMilesExact(a, b) * DETOUR;
+  }
+
+  /* A duration already on the entry is a decision, not a guess to be redone:
+     a typed time, a timetable, a figure carried over from the itinerary. Only
+     a missing one is estimated. Everything that ought to invalidate a stored
+     figure — changing the mode, tracing the leg on the map — clears it at
+     source, so there is no need to second-guess it here.
+
+     This matters more than it looks. Recomputing a stored duration from the
+     mode once priced the SFO → SGN leg as 7,900 miles at the "other" speed
+     and pushed the first day to four in the morning three days later. */
+  function travelEstimate(e, before, after) {
+    const mi = travelMiles(e, before, after);
+    const mode = e.mode || 'walk';
+    const sp = modeSpeed(mode, mi);
+    if (e.durationMin != null) {
+      return { mins: e.durationMin, exact: e.durationMode === 'manual',
+               stored: true, miles: mi, mph: sp.mph, calN: sp.n };
+    }
+    if (mi == null) return { mins: 0, exact: false, miles: null, noGeo: true };
+    return { mins: Math.max(1, Math.round(mi / sp.mph * 60)),
+             exact: false, miles: mi, calN: sp.n, mph: sp.mph };
+  }
+
+  /* The gap between two stops with no travel leg between them.
+
+     It is shown but NOT added to the clock. A stop's duration is time at the
+     stop; travel is an entry of its own, created deliberately. Charging an
+     estimated hop to the clock as well would double-count every journey the
+     plan already accounts for inside a stop's duration, and the day would
+     drift later with every stop added. So the hop is advice — "this is not
+     budgeted" — with one click to turn it into a leg that is. */
+  function impliedHop(a, b) {
+    const p = entryEndPos(a), q = entryPos(b);
+    if (!p || !q) return null;
+    const mi = gcMilesExact(p, q) * DETOUR;
+    if (mi < 0.04) return null;
+    const mode = mi <= WALK_LIMIT_MI ? 'walk' : 'taxi';
+    return { mins: Math.max(1, Math.round(mi / (SPEED_MPH[mode] || 12) * 60)), mode: mode, miles: mi };
+  }
+
+  /* ── The computed schedule ───────────────────────────────────────────── */
+
+  function planOn(date) {
+    return plan.filter(function (e) { return e.date === date; })
+               .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+  }
+
+  function nextStop(list, from) {
+    for (let i = from; i < list.length; i++) if (list[i].type === 'stop') return list[i];
+    return null;
+  }
+
+  function prevStop(list, from) {
+    for (let i = from; i >= 0; i--) if (list[i].type === 'stop') return list[i];
+    return null;
+  }
+
+  function computeDay(date) {
+    const list = planOn(date);
+    const start = dayStartOf(date);
+    let t = start;
+    const rows = [];
+    let last = null;          // the previous stop, if nothing has moved us since
+
+    list.forEach(function (e, idx) {
+      if (e.type === 'travel') {
+        const before = prevStop(list, idx - 1), after = nextStop(list, idx + 1);
+        const est = travelEstimate(e, before, after);
+        rows.push({ kind: 'travel', entry: e, start: t, end: t + est.mins / 60, est: est,
+                    fromPos: before && entryEndPos(before), toPos: after && entryPos(after) });
+        t += est.mins / 60;
+        last = null;
+      } else {
+        if (last) {
+          const h = impliedHop(last, e);
+          // Shown at the clock's current position; deliberately does not move it.
+          if (h) rows.push({ kind: 'implied', entry: e, after: last, start: t, end: t, est: h });
+        }
+        const dur = e.durationMin != null ? e.durationMin : DEFAULT_STOP_MIN;
+        rows.push({ kind: 'stop', entry: e, start: t, end: t + dur / 60, mins: dur });
+        t += dur / 60;
+        last = e;
+      }
+    });
+    return { rows: rows, start: start, end: t, list: list };
+  }
+
+  // Beyond 24:00 the clock keeps counting rather than wrapping — a day that
+  // runs to 01:30 should read "01:30 +1", not silently look like the morning.
+  function clockStr(h) {
+    if (h == null || !isFinite(h)) return '—';
+    const over = Math.floor(h / 24);
+    const base = hmToStr(h - over * 24);
+    return over > 0 ? base + ' +' + over : base;
+  }
+
+  /* ── Plan entries as map items ───────────────────────────────────────────
+     Everything downstream — the map, the clustering, the detail panel —
+     already speaks "model item". Rather than teach each of them about plan
+     entries, the plan is projected into that shape and registered in
+     model.byId, so a plan node clicks, clusters and colours like any other. */
+
+  function planItemFor(row, seq) {
+    const e = row.entry;
+    const ref = e.refId && model.byId[e.refId];
+    const time = clockStr(row.start);
+    const fields = [
+      ['Starts', time],
+      ['Ends', clockStr(row.end)],
+      [e.type === 'travel' ? 'Travel' : 'Here for',
+        fmtMin(e.type === 'travel' ? row.est.mins : row.mins)],
+      ['Mode', e.type === 'travel' ? (MODES[e.mode] || MODES.other).label : null],
+      ['Estimate', e.type !== 'travel' || row.est.exact ? null
+        : row.est.stored ? 'carried over from the plan'
+        : row.est.miles != null ? '≈ from ' + row.est.miles.toFixed(1) + ' mi at ' +
+            Math.round(row.est.mph || 0) + ' mph'
+        : 'no distance to measure'],
+      ['From catalogue', ref ? ref.title : null],
+      ['Area', e.areaRadius ? Math.round(e.areaRadius) + ' m across the middle' : null]
+    ];
+
+    if (e.type === 'travel') {
+      const a = (e.lat != null ? { lat: e.lat, lng: e.lng } : null) ||
+                posObj(row.fromPos) || { lat: null, lng: null };
+      const b = (e.toLat != null ? { lat: e.toLat, lng: e.toLng } : null) ||
+                posObj(row.toPos) || { lat: null, lng: null };
+      return {
+        id: e.id, kind: 'transport', geo: 'leg', mode: e.mode || 'other',
+        title: entryName(e), subtitle: 'planned leg',
+        dates: [e.date], time: time, booked: true,
+        durationMin: row.est.mins, route: e.route,
+        from: a, to: b, fields: fields, notes: e.notes, planned: true, seq: seq
+      };
+    }
+    const p = entryPos(e) || [null, null];
+    return {
+      id: e.id, kind: ref ? ref.kind : 'place', geo: 'point',
+      title: entryName(e), subtitle: ref ? ref.subtitle : (e.areaRadius ? 'walking area' : null),
+      dates: [e.date], time: time, booked: ref ? ref.booked : null,
+      lat: p[0], lng: p[1], route: e.route,
+      areaRadius: e.areaRadius,
+      fields: fields, notes: e.notes || (ref && ref.notes), link: ref && ref.link,
+      planned: true, seq: seq
+    };
+  }
+
+  function posObj(p) { return p ? { lat: p[0], lng: p[1] } : null; }
+
+  // Rebuild the projection and the byId index. Stale plan ids are removed so a
+  // deleted entry cannot be selected or drawn after it is gone.
+  function rebuildPlan() {
+    if (!model) return;
+    Object.keys(planIndex).forEach(function (id) { delete model.byId[id]; });
+    planIndex = {};
+    planItems = [];
+    if (selectedDate === 'all') return;
+
+    const day = computeDay(selectedDate);
+    let seq = 0;
+    day.rows.forEach(function (row) {
+      if (row.kind === 'implied') return;
+      if (row.kind === 'stop') seq++;
+      const it = planItemFor(row, row.kind === 'stop' ? seq : null);
+      planItems.push(it);
+      planIndex[it.id] = true;
+      model.byId[it.id] = it;
+    });
+  }
+
+  // What the map draws. In build view that is the plan, not the catalogue.
+  function stageItems(date) {
+    if (view !== 'build' || date === 'all') return itemsOn(date);
+    return planItems.slice();
+  }
+
+  // Catalogue entries for the day that the plan has not taken up. Drawn faint
+  // so the day's options are visible, and clicking one adds it.
+  function candidates(date) {
+    if (view !== 'build' || date === 'all') return [];
+    const used = {};
+    plan.forEach(function (e) { if (e.refId) used[e.refId] = true; });
+    return itemsOn(date).filter(function (i) {
+      return i.geo === 'point' && i.lat != null && !used[i.id];
+    });
+  }
+
+  /* ── Mutations ───────────────────────────────────────────────────────── */
+
+  function renumber(date) {
+    planOn(date).forEach(function (e, i) {
+      if (e.order !== i + 1) { e.order = i + 1; markPlanDirty(e); }
+    });
+  }
+
+  function planCommit(msg) {
+    renumber(selectedDate);
+    savePlanLocal();
+    rebuildPlan();
+    refreshAll();
+    if (msg) toast(msg);
+  }
+
+  function planAdd(partial, where) {
+    const date = selectedDate === 'all' ? (model.days[0] && model.days[0].date) : selectedDate;
+    const list = planOn(date);
+    const e = normaliseEntry(Object.assign({
+      id: planKey(), date: date, order: list.length + 1, dirty: true
+    }, partial));
+    e.dirty = true;
+    if (where === 'after' && activeId && planIndex[activeId]) {
+      const anchor = plan.find(function (x) { return x.id === activeId; });
+      if (anchor && anchor.date === date) {
+        e.order = anchor.order + 0.5;
+      }
+    }
+    plan.push(e);
+    return e;
+  }
+
+  function addFromCatalogue(refId) {
+    const ref = model.byId[refId];
+    if (!ref) return;
+    planAdd({
+      type: 'stop', refId: refId, name: null,
+      lat: ref.lat, lng: ref.lng,
+      areaRadius: ref.areaRadius || null,
+      route: ref.route || null,
+      durationMin: ref.kind === 'food' ? 60 : (ref.areaRadius ? 75 : DEFAULT_STOP_MIN)
+    }, 'after');
+    planCommit(ref.title + ' added to ' + fmtDate(selectedDate) + '.');
+  }
+
+  function addTravel(mode) {
+    planAdd({ type: 'travel', mode: mode || 'walk', durationMode: 'auto', durationMin: null }, 'after');
+    planCommit('Leg added. Set its mode, or draw it on the map.');
+  }
+
+  function duplicateEntry(id) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    const copy = {};
+    Object.keys(e).forEach(function (k) { copy[k] = e[k]; });
+    copy.id = planKey(); copy.notionId = null; copy.order = e.order + 0.5; copy.dirty = true;
+    plan.push(normaliseEntry(copy));
+    planCommit('Added a second visit to ' + entryName(e) + '.');
+  }
+
+  function moveEntry(id, delta) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    const list = planOn(e.date);
+    const i = list.indexOf(e);
+    const j = i + delta;
+    if (j < 0 || j >= list.length) return;
+    // Swapping orders beats re-sorting: it moves one row by one slot, which is
+    // what the arrow means, and leaves every other row's number alone.
+    const a = list[i].order, b = list[j].order;
+    list[i].order = b; list[j].order = a;
+    markPlanDirty(list[i]); markPlanDirty(list[j]);
+    planCommit(null);
+  }
+
+  // Moving a stop to another day is the thing the spreadsheet could never do:
+  // "the War Remnants Museum on the 14th rather than the 15th" is one click.
+  function shiftEntryDay(id, delta) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    const i = model.days.findIndex(function (d) { return d.date === e.date; });
+    const j = i + delta;
+    if (i === -1 || j < 0 || j >= model.days.length) return;
+    const to = model.days[j].date;
+    const from = e.date;
+    e.date = to;
+    e.order = planOn(to).length + 1;     // lands at the end of the target day
+    markPlanDirty(e);
+    renumber(from);
+    renumber(to);
+    savePlanLocal();
+    activeId = null;
+    setDay(to);
+    toast(entryName(e) + ' moved to ' + fmtDate(to) + '.');
+  }
+
+  function setEntryDuration(id, mins) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    const n = Math.round(Number(mins));
+    if (!isFinite(n) || n < 0) return;
+    e.durationMin = n;
+    if (e.type === 'travel') e.durationMode = 'manual';
+    markPlanDirty(e);
+    planCommit(null);
+  }
+
+  function nudgeDuration(id, delta) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    let base = e.durationMin;
+    if (base == null) {
+      if (e.type === 'travel') {
+        const list = planOn(e.date), idx = list.indexOf(e);
+        base = travelEstimate(e, prevStop(list, idx - 1), nextStop(list, idx + 1)).mins;
+      } else base = DEFAULT_STOP_MIN;
+    }
+    setEntryDuration(id, Math.max(0, base + delta));
+  }
+
+  function autoDuration(id) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e || e.type !== 'travel') return;
+    e.durationMode = 'auto';
+    e.durationMin = null;
+    markPlanDirty(e);
+    planCommit('Back to the estimate for this mode.');
+  }
+
+  function setEntryMode(id, mode) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e || ALL_BUILD_MODES.indexOf(mode) === -1) return;
+    e.mode = mode;
+    // Picking a mode is asking for that mode's time. Whatever was there — typed
+    // by hand or carried over from the plan — described a different journey, so
+    // it goes rather than quietly surviving under the new label.
+    e.durationMode = 'auto';
+    e.durationMin = null;
+    markPlanDirty(e);
+    planCommit(null);
+  }
+
+  function setEntryRadius(id, m) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    const n = Math.round(Number(m));
+    e.areaRadius = isFinite(n) && n > 0 ? n : null;
+    markPlanDirty(e);
+    planCommit(null);
+  }
+
+  function removeEntry(id) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    const date = e.date;
+    if (e.notionId && planDeleted.indexOf(e.notionId) === -1) planDeleted.push(e.notionId);
+    plan = plan.filter(function (x) { return x.id !== id; });
+    if (activeId === id) { activeId = null; el.detail.classList.remove('is-open'); }
+    renumber(date);
+    savePlanLocal();
+    rebuildPlan();
+    refreshAll();
+    toast(e.notionId ? 'Removed. It is archived in Notion on the next save.' : 'Removed.');
+  }
+
+  // Convert an implied hop into a real leg, so it can be given a mode and a
+  // time of its own instead of being an estimate the plan does not own.
+  function materialiseHop(afterId, beforeId) {
+    const a = plan.find(function (x) { return x.id === afterId; });
+    const b = plan.find(function (x) { return x.id === beforeId; });
+    if (!a || !b) return;
+    const h = impliedHop(a, b);
+    const pa = entryEndPos(a), pb = entryPos(b);
+    const e = normaliseEntry({
+      id: planKey(), date: a.date, order: (a.order + b.order) / 2,
+      type: 'travel', mode: h ? h.mode : 'walk', durationMode: 'auto',
+      lat: pa && pa[0], lng: pa && pa[1], toLat: pb && pb[0], toLng: pb && pb[1],
+      dirty: true
+    });
+    e.dirty = true;
+    plan.push(e);
+    planCommit('Leg added between the two stops.');
+  }
+
+  /* ── Picking a position off the map ──────────────────────────────────── */
+
+  function startPick(what, name, radius) {
+    picking = { what: what, name: name, radius: radius || null };
+    el.stage.classList.add('picking');
+    el.pickText.textContent = what === 'area'
+      ? 'Click the middle of "' + name + '"'
+      : 'Click where "' + name + '" is';
+  }
+
+  function cancelPick() {
+    picking = null;
+    el.stage.classList.remove('picking');
+  }
+
+  function finishPick(lat, lng) {
+    if (!picking) return;
+    const p = picking;
+    cancelPick();
+    if (p.what === 'area') {
+      planAdd({ type: 'stop', name: p.name, lat: lat, lng: lng,
+                areaRadius: p.radius || DEFAULT_AREA_M, durationMin: 75 }, 'after');
+      planCommit('"' + p.name + '" added as a walking area.');
+    } else {
+      planAdd({ type: 'stop', name: p.name, lat: lat, lng: lng,
+                durationMin: DEFAULT_STOP_MIN }, 'after');
+      planCommit('"' + p.name + '" added.');
+    }
+  }
+
+  /* ── Rendering ───────────────────────────────────────────────────────── */
+
+  function modeOptions(selected) {
+    const opt = function (m) {
+      return '<option value="' + m + '"' + (m === selected ? ' selected' : '') + '>' +
+             esc((MODES[m] || MODES.other).label) + '</option>';
+    };
+    return BUILD_MODES.map(opt).join('') +
+           '<optgroup label="also">' + EXTRA_MODES.map(opt).join('') + '</optgroup>';
+  }
+
+  function renderBuild() {
+    if (!el.bdBody) return;
+    const date = selectedDate;
+
+    if (date === 'all') {
+      el.bdTitle.textContent = 'Build';
+      el.bdSub.textContent = '';
+      el.bdClock.innerHTML = '';
+      el.bdBody.innerHTML = '<p class="bd__empty">Pick a single day above to build it. ' +
+        'The whole-trip view is for looking, not planning.</p>';
+      el.bdAdd.innerHTML = '';
+      renderBuildFoot();
+      return;
+    }
+
+    const day = model.days.find(function (d) { return d.date === date; });
+    const sched = computeDay(date);
+    el.bdTitle.textContent = fmtDate(date);
+    el.bdSub.textContent = day ? ('Day ' + day.n + (day.sleeping ? ' · ' + day.sleeping : '')) : '';
+
+    const nStops = sched.rows.filter(function (r) { return r.kind === 'stop'; }).length;
+    el.bdClock.innerHTML =
+      '<label>Start <input class="bd__start" type="time" id="bdStart" value="' +
+        esc(dayStartStr(date)) + '"></label>' +
+      '<span>ends <b>' + esc(clockStr(sched.end)) + '</b></span>' +
+      '<span>' + nStops + (nStops === 1 ? ' stop' : ' stops') + '</span>';
+
+    if (!sched.rows.length) {
+      el.bdBody.innerHTML = '<p class="bd__empty">Nothing planned for this day yet. ' +
+        'Add a place below, or click a faint node on the map.</p>';
+    } else {
+      el.bdBody.innerHTML = sched.rows.map(function (r, idx) {
+        return r.kind === 'implied' ? impliedRow(r) : entryRow(r, idx, sched);
+      }).join('');
+    }
+
+    renderAddDrawer();
+    renderBuildFoot();
+  }
+
+  function entryRow(r, idx, sched) {
+    const e = r.entry;
+    const isTravel = e.type === 'travel';
+    const item = model.byId[e.id];
+    const col = item ? itemColor(item) : NEUTRAL;
+    const list = sched.list;
+    const pos = list.indexOf(e);
+    const dayIdx = model.days.findIndex(function (d) { return d.date === e.date; });
+
+    const dur = isTravel ? r.est.mins : r.mins;
+    const meta = [];
+    if (isTravel) {
+      const sp = modeSpeed(e.mode || 'walk', r.est.miles);
+      const dist = r.est.miles != null ? r.est.miles.toFixed(1) + ' mi' : null;
+      if (r.est.exact) meta.push('set by hand' + (dist ? ' · ' + dist : ''));
+      else if (r.est.stored) meta.push('from the plan' + (dist ? ' · ' + dist : ''));
+      else if (dist) {
+        meta.push('≈ ' + dist +
+          (sp.n ? ', from ' + sp.n + ' ' + e.mode + ' leg' + (sp.n === 1 ? '' : 's') + ' on this trip'
+                : ' at ' + Math.round(sp.mph) + ' mph'));
+      } else meta.push('<em>no distance yet — draw it or set the time</em>');
+      if (e.route) meta.push(e.route.length + '-point path');
+    } else {
+      if (item && item.subtitle) meta.push(esc(item.subtitle));
+      if (e.areaRadius) meta.push(Math.round(e.areaRadius) + ' m area');
+      if (e.notionId == null) meta.push('new');
+      const warn = item && closedWarning(item);
+      if (warn) meta.push('<em>' + esc(warn) + '</em>');
+    }
+
+    const ctl = isTravel
+      ? '<select data-emode="' + esc(e.id) + '" title="Mode of transport">' + modeOptions(e.mode || 'walk') + '</select>' +
+        '<button data-enudge="' + esc(e.id) + '|-5">&minus;5</button>' +
+        '<input type="number" min="0" step="5" value="' + dur + '" data-eset="' + esc(e.id) + '" title="Minutes"> min' +
+        '<button data-enudge="' + esc(e.id) + '|5">+5</button>' +
+        (e.durationMode === 'manual'
+          ? '<button data-eauto="' + esc(e.id) + '" class="st__pin" title="Use the estimate for this mode">auto</button>' : '') +
+        '<button data-edraw="' + esc(e.id) + '" title="Trace this leg on the map">' +
+          (e.route ? 'redraw' : 'draw') + '</button>'
+      : '<button data-enudge="' + esc(e.id) + '|-15">&minus;15</button>' +
+        '<input type="number" min="0" step="5" value="' + dur + '" data-eset="' + esc(e.id) + '" title="Minutes here"> min' +
+        '<button data-enudge="' + esc(e.id) + '|15">+15</button>' +
+        (e.areaRadius
+          ? '<input type="number" min="50" step="50" value="' + Math.round(e.areaRadius) +
+            '" data-erad="' + esc(e.id) + '" title="Area radius in metres" style="width:60px"> m' : '') +
+        '<button data-edup="' + esc(e.id) + '" title="Go here again later today">again</button>';
+
+    return '<div class="st st--' + (isTravel ? 'travel' : 'stop') +
+             (e.id === activeId ? ' is-active' : '') + '" data-entry="' + esc(e.id) + '">' +
+      '<div class="st__when"><b>' + esc(clockStr(r.start)) + '</b>' +
+        '<i>' + esc(clockStr(r.end)) + '</i></div>' +
+      '<div class="st__main">' +
+        '<div class="st__row1">' +
+          '<span class="st__dot" style="--c:' + col + '"></span>' +
+          '<button class="st__nm" data-eopen="' + esc(e.id) + '">' + esc(entryName(e)) + '</button>' +
+          '<span class="st__seq">' + (r.kind === 'stop' && item && item.seq ? item.seq : '') + '</span>' +
+          '<button class="st__del" data-edel="' + esc(e.id) + '" title="Remove from the day" ' +
+            'aria-label="Remove ' + esc(entryName(e)) + ' from the day">&times;</button>' +
+        '</div>' +
+        (meta.length ? '<div class="st__meta">' + meta.join(' · ') + '</div>' : '') +
+        '<div class="st__ctl">' + ctl +
+          '<span class="st__sep"></span>' +
+          '<button data-eup="' + esc(e.id) + '"' + (pos <= 0 ? ' disabled' : '') + ' title="Earlier">&#9650;</button>' +
+          '<button data-edown="' + esc(e.id) + '"' + (pos >= list.length - 1 ? ' disabled' : '') + ' title="Later">&#9660;</button>' +
+          '<button class="st__day" data-edayprev="' + esc(e.id) + '"' + (dayIdx <= 0 ? ' disabled' : '') +
+            ' title="Move to the day before" aria-label="Move to the day before">&#8249;|</button>' +
+          '<button class="st__day" data-edaynext="' + esc(e.id) + '"' + (dayIdx >= model.days.length - 1 ? ' disabled' : '') +
+            ' title="Move to the next day" aria-label="Move to the next day">|&#8250;</button>' +
+        '</div>' +
+      '</div></div>';
+  }
+
+  function impliedRow(r) {
+    return '<div class="st st--travel st--implied">' +
+      '<div class="st__when"><i>' + esc(clockStr(r.start)) + '</i></div>' +
+      '<div class="st__main">' +
+        '<div class="st__meta">≈' + fmtGap(r.est.mins) + ' ' +
+          esc((MODES[r.est.mode] || MODES.other).label.toLowerCase()) +
+          ' (' + r.est.miles.toFixed(1) + ' mi) to get here — <em>not in the clock</em></div>' +
+        '<div class="st__ctl"><button data-ehop="' + esc(r.after.id) + '|' + esc(r.entry.id) + '">' +
+          'budget it as a leg</button></div>' +
+      '</div></div>';
+  }
+
+  function renderAddDrawer() {
+    const date = selectedDate;
+    if (date === 'all') { el.bdAdd.innerHTML = ''; return; }
+
+    // Folded by default: the plan is what the rail is for, and an open
+    // catalogue pushed the day down to two visible stops.
+    el.bdAdd.classList.toggle('is-open', addOpen);
+    if (!addOpen) {
+      el.bdAdd.innerHTML = '<button class="bd__addtoggle" id="bdAddToggle" aria-expanded="false">' +
+        '+ Add a stop, an area or a leg</button>';
+      return;
+    }
+
+    const q = buildFilter.trim().toLowerCase();
+    const pool = model.items.filter(function (i) {
+      return i.geo === 'point' && (i.kind === 'place' || i.kind === 'food' || i.kind === 'stay');
+    });
+    const onDay = {};
+    itemsOn(date).forEach(function (i) { onDay[i.id] = true; });
+
+    // The day's own entries first — they are what you are most likely adding —
+    // then everything else in the trip, because a place can be moved here.
+    const hits = pool.filter(function (i) {
+      return !q || i.title.toLowerCase().indexOf(q) !== -1;
+    }).sort(function (a, b) {
+      const d = (onDay[b.id] ? 1 : 0) - (onDay[a.id] ? 1 : 0);
+      return d !== 0 ? d : a.title.localeCompare(b.title);
+    }).slice(0, 60);
+
+    el.bdAdd.innerHTML =
+      '<button class="bd__addtoggle" id="bdAddToggle" aria-expanded="true">' +
+        '&minus; Add to this day</button>' +
+      '<div class="row">' +
+        '<input type="search" id="bdFilter" placeholder="Find a place, stay or food stop" value="' +
+          esc(buildFilter) + '">' +
+      '</div>' +
+      '<div class="cand">' + (hits.length ? hits.map(function (i) {
+        return '<button class="cand__row" data-eadd="' + esc(i.id) + '">' +
+          '<i style="--c:' + TYPE_COLOR[typeOf(i)] + ';background:' + TYPE_COLOR[typeOf(i)] + '"></i>' +
+          '<span>' + esc(i.title) + '</span>' +
+          '<u>' + esc(onDay[i.id] ? 'this day' : (i.dates[0] ? fmtDate(i.dates[0]) : 'undated')) + '</u>' +
+          '</button>';
+      }).join('') : '<div class="cand__none">Nothing matches.</div>') + '</div>' +
+      '<div class="row" style="margin-top:7px">' +
+        '<button class="mini" id="bdNewPlace">+ new place</button>' +
+        '<button class="mini" id="bdNewArea">+ walking area</button>' +
+        '<select id="bdNewLeg"><option value="">+ travel leg…</option>' + modeOptions(null) + '</select>' +
+      '</div>';
+  }
+
+  function planPending() {
+    return plan.filter(function (e) { return e.dirty; }).length + planDeleted.length +
+           Object.keys(dayStartEdits).length;
+  }
+
+  function renderBuildFoot() {
+    const n = planPending();
+    const parts = [];
+    if (n) {
+      parts.push('<button class="btn btn--on" id="bdSave"' + (saving ? ' disabled' : '') + '>' +
+        (saving ? 'Saving…' : 'Save ' + n + ' change' + (n === 1 ? '' : 's') + ' to Notion') + '</button>');
+      parts.push('<button class="btn btn--ghost" id="bdDiscard">Discard</button>');
+    } else {
+      parts.push('<span class="bd__sub">Times are computed from the start, ' +
+        'so moving one stop moves the rest.</span>');
+    }
+    parts.push('<button class="btn btn--ghost" id="bdSecret" title="Passphrase for saving to Notion">' +
+      (editSecret ? 'Passphrase set' : 'Set passphrase') + '</button>');
+    el.bdFoot.innerHTML = parts.join('');
+  }
+
+  /* ── Saving the plan ─────────────────────────────────────────────────── */
+
+  function planPayload() {
+    const byDate = {};
+    plan.forEach(function (e) { (byDate[e.date] = byDate[e.date] || []).push(e); });
+
+    return plan.filter(function (e) { return e.dirty; }).map(function (e) {
+      const list = (byDate[e.date] || []).slice().sort(function (a, b) { return a.order - b.order; });
+      const idx = list.indexOf(e);
+      const est = e.type === 'travel'
+        ? travelEstimate(e, prevStop(list, idx - 1), nextStop(list, idx + 1)) : null;
+      const pts = e.route && e.route.length > 1 ? simplifyForStorage(e.route) : null;
+      return {
+        id: e.id,
+        notionId: e.notionId || null,
+        name: entryName(e),
+        date: e.date,
+        order: idx + 1,
+        type: e.type === 'travel' ? 'Travel' : 'Stop',
+        durationMin: e.type === 'travel'
+          ? (e.durationMode === 'manual' && e.durationMin != null ? e.durationMin : est.mins)
+          : (e.durationMin != null ? e.durationMin : DEFAULT_STOP_MIN),
+        durationMode: e.durationMode === 'manual' ? 'Manual' : 'Estimated',
+        mode: e.type === 'travel' ? (e.mode || 'walk') : null,
+        lat: e.lat, lng: e.lng, toLat: e.toLat, toLng: e.toLng,
+        areaRadius: e.areaRadius,
+        refId: e.refId || null,
+        refKind: e.refId && model.byId[e.refId] ? model.byId[e.refId].kind : null,
+        route: pts ? pts.map(function (q) { return q[0].toFixed(5) + ',' + q[1].toFixed(5); }).join('; ') : null,
+        notes: e.notes || null
+      };
+    });
+  }
+
+  function dayStartPayload() {
+    return Object.keys(dayStartEdits).map(function (date) {
+      const d = model.days.find(function (x) { return x.date === date; });
+      return d && d.id ? { id: d.id, date: date, start: dayStartEdits[date] } : null;
+    }).filter(Boolean);
+  }
+
+  function discardPlanEdits() {
+    plan = planFromNotion.map(function (e) {
+      const c = {}; Object.keys(e).forEach(function (k) { c[k] = e[k]; });
+      return c;
+    });
+    planDeleted = [];
+    dayStartEdits = {};
+    savePlanLocal();
+    rebuildPlan();
+    refreshAll();
+    toast('Plan back to what Notion says.');
   }
 
   /* ── DAY RAIL ──────────────────────────────────────────────────────────── */
@@ -2416,6 +3657,8 @@ window.AIRPORTS = {
 
   function refreshAll() {
     renderRail();
+    rebuildPlan();
+    renderBuild();
     renderMap(false);
     renderList();
     renderTimeline();
@@ -2429,8 +3672,13 @@ window.AIRPORTS = {
     stackIds = null;
     el.detail.classList.remove('is-open');
     renderRail();
+    rebuildPlan();
+    renderBuild();
     renderMap(true);
     renderTimeline();
+    // The path layer is separate from the day layer, so a day change does not
+    // redraw it on its own — without this the previous day's paths stay up.
+    renderPaths();
     if (view === 'list') scrollListToDay(date);
   }
 
@@ -2485,14 +3733,21 @@ window.AIRPORTS = {
 
   function setView(v) {
     view = v;
-    const isMap = v === 'map';
-    el.tabMap.setAttribute('aria-selected', String(isMap));
-    el.tabList.setAttribute('aria-selected', String(!isMap));
-    el.map.classList.toggle('is-hidden', !isMap);
-    el.list.classList.toggle('is-visible', !isMap);
-    el.legend.classList.toggle('is-off', !isMap);
-    if (isMap && map) { map.invalidateSize(); }
-    else { scrollListToDay(selectedDate); }
+    const onMap = v === 'map' || v === 'build';   // both draw on the map
+    el.tabBuild.setAttribute('aria-selected', String(v === 'build'));
+    el.tabMap.setAttribute('aria-selected', String(v === 'map'));
+    el.tabList.setAttribute('aria-selected', String(v === 'list'));
+    el.stage.classList.toggle('view-build', v === 'build');
+    el.map.classList.toggle('is-hidden', !onMap);
+    el.list.classList.toggle('is-visible', v === 'list');
+    el.legend.classList.toggle('is-off', !onMap);
+    if (picking && v !== 'build') cancelPick();
+    // The plan and the catalogue are different sets of nodes, so switching
+    // between Build and Map redraws rather than just revealing.
+    rebuildPlan();
+    if (v === 'build') renderBuild();
+    if (onMap) { renderMap(false); if (map) map.invalidateSize(); }
+    else scrollListToDay(selectedDate);
   }
 
   /* ── CHROME ────────────────────────────────────────────────────────────── */
@@ -2556,8 +3811,97 @@ window.AIRPORTS = {
     el.railPrev.addEventListener('click', function () { stepDay(-1); });
     el.railNext.addEventListener('click', function () { stepDay(1); });
 
+    el.tabBuild.addEventListener('click', function () { setView('build'); });
     el.tabMap.addEventListener('click', function () { setView('map'); });
     el.tabList.addEventListener('click', function () { setView('list'); });
+
+    /* ── Build rail ────────────────────────────────────────────────────── */
+    el.bdBody.addEventListener('click', function (e) {
+      const hit = function (a) { return e.target.closest('[data-' + a + ']'); };
+      let b;
+      if ((b = hit('eopen')))    { select(b.dataset.eopen); return; }
+      if ((b = hit('eup')))      { moveEntry(b.dataset.eup, -1); return; }
+      if ((b = hit('edown')))    { moveEntry(b.dataset.edown, 1); return; }
+      if ((b = hit('edayprev'))) { shiftEntryDay(b.dataset.edayprev, -1); return; }
+      if ((b = hit('edaynext'))) { shiftEntryDay(b.dataset.edaynext, 1); return; }
+      if ((b = hit('edel')))     { removeEntry(b.dataset.edel); return; }
+      if ((b = hit('edup')))     { duplicateEntry(b.dataset.edup); return; }
+      if ((b = hit('eauto')))    { autoDuration(b.dataset.eauto); return; }
+      if ((b = hit('edraw')))    { drawForEntry(b.dataset.edraw); return; }
+      if ((b = hit('enudge')))   {
+        const parts = b.dataset.enudge.split('|');
+        nudgeDuration(parts[0], parseInt(parts[1], 10));
+        return;
+      }
+      if ((b = hit('ehop')))     {
+        const parts = b.dataset.ehop.split('|');
+        materialiseHop(parts[0], parts[1]);
+        return;
+      }
+    });
+
+    // 'change', not 'input': a half-typed number would land as a real duration
+    // on every keystroke and the whole day would jump around while typing.
+    el.bdBody.addEventListener('change', function (e) {
+      let f;
+      if ((f = e.target.closest('[data-eset]')))  { setEntryDuration(f.dataset.eset, f.value); return; }
+      if ((f = e.target.closest('[data-erad]')))  { setEntryRadius(f.dataset.erad, f.value); return; }
+      if ((f = e.target.closest('[data-emode]'))) { setEntryMode(f.dataset.emode, f.value); return; }
+    });
+
+    el.bdClock.addEventListener('change', function (e) {
+      const f = e.target.closest('#bdStart');
+      if (f && f.value) setDayStart(selectedDate, f.value);
+    });
+
+    el.bdAdd.addEventListener('click', function (e) {
+      if (e.target.closest('#bdAddToggle')) {
+        addOpen = !addOpen;
+        lsSet(LS_ADDOPEN, addOpen);
+        renderAddDrawer();
+        const f = el.bdAdd.querySelector('#bdFilter');
+        if (f) f.focus();
+        return;
+      }
+      const a = e.target.closest('[data-eadd]');
+      if (a) { addFromCatalogue(a.dataset.eadd); return; }
+      if (e.target.closest('#bdNewPlace')) {
+        const nm = window.prompt('What is it called?', '');
+        if (nm && nm.trim()) startPick('place', nm.trim());
+        return;
+      }
+      if (e.target.closest('#bdNewArea')) {
+        const nm = window.prompt('What area is it? e.g. "Walk around District 3"', '');
+        if (!nm || !nm.trim()) return;
+        const r = window.prompt('How far across, in metres from the middle?', String(DEFAULT_AREA_M));
+        startPick('area', nm.trim(), parseInt(r, 10) || DEFAULT_AREA_M);
+        return;
+      }
+    });
+
+    el.bdAdd.addEventListener('change', function (e) {
+      const leg = e.target.closest('#bdNewLeg');
+      if (leg && leg.value) { const m = leg.value; leg.value = ''; addTravel(m); }
+    });
+
+    // Re-render on each keystroke here is fine: it is a filter over a list that
+    // is already in memory, and waiting for 'change' would feel broken.
+    el.bdAdd.addEventListener('input', function (e) {
+      const f = e.target.closest('#bdFilter');
+      if (!f) return;
+      buildFilter = f.value;
+      renderAddDrawer();
+      const again = el.bdAdd.querySelector('#bdFilter');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    });
+
+    el.bdFoot.addEventListener('click', function (e) {
+      if (e.target.closest('#bdSave')) { saveToNotion(); return; }
+      if (e.target.closest('#bdSecret')) { promptSecret(); return; }
+      if (e.target.closest('#bdDiscard')) { discardPlanEdits(); return; }
+    });
+
+    el.btnCancelPick.addEventListener('click', cancelPick);
 
     el.list.addEventListener('click', function (e) {
       const b = e.target.closest('[data-id]');
@@ -2647,6 +3991,16 @@ window.AIRPORTS = {
     el.btnUndoPt.addEventListener('click', undoPoint);
 
     const pathBox = $('pathList');
+    pathBox.addEventListener('change', function (e) {
+      const sel = e.target.closest('[data-path-mode]');
+      if (!sel) return;
+      const p = draftPaths.find(function (x) { return x.id === sel.dataset.pathMode; });
+      if (!p) return;
+      p.mode = sel.value;
+      markDirty(p);
+      savePaths();
+      renderPaths();
+    });
     pathBox.addEventListener('click', function (e) {
       const ed = e.target.closest('[data-path-edit]');
       if (ed) { toggleEditPath(ed.dataset.pathEdit); return; }
@@ -2680,6 +4034,7 @@ window.AIRPORTS = {
         else if (e.key === 'Escape') { cancelDraw(); }
         return;
       }
+      if (picking && e.key === 'Escape') { cancelPick(); return; }
       if (e.key === 'ArrowLeft') { stepDay(-1); }
       else if (e.key === 'ArrowRight') { stepDay(1); }
       else if (e.key === 'Escape') {
@@ -2690,13 +4045,15 @@ window.AIRPORTS = {
   }
 
   function cacheDom() {
-    ['tripName', 'tripDates', 'unbookedFlag', 'tabMap', 'tabList', 'railTrack',
+    ['tripName', 'tripDates', 'unbookedFlag', 'tabBuild', 'tabMap', 'tabList', 'railTrack',
      'railPrev', 'railNext', 'map', 'list', 'detail', 'detailBody', 'detailClose',
      'legend', 'legendToggle', 'legendModes', 'legendKey',
      'modeType', 'modeTime',
      'stage', 'tools', 'btnPath', 'btnAuto', 'btnTl', 'drawBar', 'drawHint',
      'drawCount', 'btnUndoPt', 'btnEndPath', 'btnCancelPath',
      'timeline', 'tlTitle', 'tlSub', 'tlBody', 'tlFoot', 'toast',
+     'builder', 'bdTitle', 'bdSub', 'bdClock', 'bdBody', 'bdAdd', 'bdFoot',
+     'pickHint', 'pickText', 'btnCancelPick',
      'pathList'].forEach(function (k) { el[k] = $(k); });
   }
 
@@ -2704,8 +4061,9 @@ window.AIRPORTS = {
 
   async function boot() {
     cacheDom();
+    let raw;
     try {
-      const raw = await loadRaw();
+      raw = await loadRaw();
       model = buildModel(raw);
     } catch (err) {
       bootError = err;
@@ -2729,6 +4087,7 @@ window.AIRPORTS = {
         }
       });
     }
+    addOpen = lsGet(LS_ADDOPEN, false) === true;
     const storedSecret = lsGet(LS_SECRET, '');
     if (typeof storedSecret === 'string') editSecret = storedSecret;
 
@@ -2742,6 +4101,20 @@ window.AIRPORTS = {
                         isFinite(pt[0]) && isFinite(pt[1]) &&
                         Math.abs(pt[0]) <= 90 && Math.abs(pt[1]) <= 180;
                });
+      });
+    }
+
+    // The plan, reconciled with Notion. A row edited here wins over Notion's
+    // copy; a row Notion no longer has is dropped rather than resurrected.
+    planFromNotion = planFromRaw(raw);
+    const storedPlan = lsGet(LS_PLAN, null);
+    plan = mergePlan(planFromNotion, storedPlan && storedPlan.entries);
+    if (storedPlan && Array.isArray(storedPlan.deleted)) {
+      planDeleted = storedPlan.deleted.filter(function (x) { return typeof x === 'string'; });
+    }
+    if (storedPlan && storedPlan.starts && typeof storedPlan.starts === 'object') {
+      Object.keys(storedPlan.starts).forEach(function (k) {
+        if (/^\d{1,2}:\d{2}$/.test(String(storedPlan.starts[k]))) dayStartEdits[k] = storedPlan.starts[k];
       });
     }
 
@@ -2760,7 +4133,7 @@ window.AIRPORTS = {
     el.stage.classList.toggle('no-tl', !tlOpen);
     el.btnTl.classList.toggle('btn--on', tlOpen);
     setDay(model.days.length ? model.days[0].date : 'all');
-    setView('map');
+    setView('build');
   }
 
   if (document.readyState === 'loading') {
