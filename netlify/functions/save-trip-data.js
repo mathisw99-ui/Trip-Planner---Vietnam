@@ -2,7 +2,13 @@
    save-trip-data.js  —  the write half of the site.
    ---------------------------------------------------------------------------
    POST /.netlify/functions/save-trip-data
-   Body: { secret, times: [...], paths: [...], deletePathIds: [...] }
+   Body: { secret,
+           times: [...],            a stop's clock time, edited on the timeline
+           paths: [...],            a path drawn on the map -> a Transport row
+           deletePathIds: [...],    archive those Transport rows
+           plan: [...],             Build-tab entries -> Itinerary rows
+           dayStarts: [...],        a day's start time -> Days."Day start"
+           deleteEntryIds: [...] }  archive those Itinerary rows
 
    Reads go through get-trip-data.js and stay open to anyone with the URL.
    Writes come through here and need the shared passphrase, because the site
@@ -13,6 +19,7 @@
      EDIT_SECRET    the passphrase. No default — without it every write is
                     refused, so a half-configured deploy fails closed.
      DB_TRANSPORT   needed to create rows for drawn paths
+     DB_ITINERARY   needed to create rows for the day plan
      DB_DAYS DB_FLIGHTS DB_STAYS DB_PLACES DB_FOOD
                     the allowlist: a page is only writable if its parent data
                     source is one of these.
@@ -43,10 +50,23 @@ const TIME_PROP = {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// The Mode select's options, exactly as Notion spells them. A value that is
+// not in here is refused rather than written: Notion rejects an unknown option
+// on a fixed select, and a half-applied save is worse than a clear failure.
+const MODE_NAME = {
+  walk: 'Walk', bike: 'Bike', bus: 'Bus', train: 'Train', taxi: 'Taxi',
+  car: 'Car', motorbike: 'Motorbike', ferry: 'Ferry', other: 'Other'
+};
+
+// Which relation column links an itinerary entry back to the catalogue. One
+// column per target database, because a Notion relation points at exactly one.
+const REF_PROP = { place: 'Place', food: 'Food', stay: 'Stay' };
+
 function allowedSources() {
   return [
     process.env.DB_DAYS, process.env.DB_FLIGHTS, process.env.DB_STAYS,
-    process.env.DB_PLACES, process.env.DB_FOOD, process.env.DB_TRANSPORT
+    process.env.DB_PLACES, process.env.DB_FOOD, process.env.DB_TRANSPORT,
+    process.env.DB_ITINERARY
   ].filter(Boolean).map(id => String(id).replace(/-/g, ''));
 }
 
@@ -166,10 +186,15 @@ exports.handler = async function (event) {
   const times = Array.isArray(body.times) ? body.times : [];
   const paths = Array.isArray(body.paths) ? body.paths : [];
   const dels  = Array.isArray(body.deletePathIds) ? body.deletePathIds : [];
-  if (times.length + paths.length + dels.length === 0) {
+  const entries   = Array.isArray(body.plan) ? body.plan : [];
+  const entryDels = Array.isArray(body.deleteEntryIds) ? body.deleteEntryIds : [];
+  const dayStarts = Array.isArray(body.dayStarts) ? body.dayStarts : [];
+  const total = times.length + paths.length + dels.length +
+                entries.length + entryDels.length + dayStarts.length;
+  if (total === 0) {
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, applied: [], failed: [] }) };
   }
-  if (times.length + paths.length + dels.length > MAX_CHANGES) {
+  if (total > MAX_CHANGES) {
     return { statusCode: 413, headers, body: JSON.stringify({
       error: 'Too many changes in one save (max ' + MAX_CHANGES + ').' }) };
   }
@@ -220,7 +245,7 @@ exports.handler = async function (event) {
 
       const props = {
         Name: { title: [{ type: 'text', text: { content: String(p.name || 'Drawn path').slice(0, 200) } }] },
-        Mode: { select: { name: 'Walk' } },
+        Mode: { select: { name: MODE_NAME[p.mode] || 'Walk' } },
         From: text(p.fromName || 'Start'),
         To: text(p.toName || 'End'),
         'From lat': numOrNull(first[0]), 'From lng': numOrNull(first[1]),
@@ -252,6 +277,103 @@ exports.handler = async function (event) {
     }
   }
 
+  /* ── Itinerary entries: the Build tab's day plan ───────────────────────── */
+  const itinDb = process.env.DB_ITINERARY;
+  for (const e of entries) {
+    try {
+      if (!itinDb) throw new Error('DB_ITINERARY not set');
+      if (!isDate(e.date)) throw new Error('bad date, expected YYYY-MM-DD');
+      const type = e.type === 'Travel' ? 'Travel' : 'Stop';
+      const dur = Number(e.durationMin);
+      if (!isFinite(dur) || dur < 0 || dur > 60 * 36) throw new Error('bad duration');
+      const ord = Number(e.order);
+      if (!isFinite(ord) || ord < 0) throw new Error('bad order');
+
+      const props = {
+        Name: { title: [{ type: 'text', text: { content: String(e.name || type).slice(0, 200) } }] },
+        Date: { date: { start: e.date } },
+        Order: { number: Math.round(ord) },
+        Type: { select: { name: type } },
+        'Duration (min)': { number: Math.round(dur) },
+        'Duration mode': { select: { name: e.durationMode === 'Manual' ? 'Manual' : 'Estimated' } },
+        Lat: numOrNull(e.lat), Lng: numOrNull(e.lng),
+        'To lat': numOrNull(e.toLat), 'To lng': numOrNull(e.toLng),
+        'Area radius (m)': numOrNull(e.areaRadius),
+        Notes: text(e.notes == null ? '' : e.notes),
+        Published: { checkbox: true }
+      };
+
+      if (type === 'Travel') {
+        const m = MODE_NAME[e.mode];
+        if (!m) throw new Error('unknown mode: ' + e.mode);
+        props.Mode = { select: { name: m } };
+        props.Route = text(cleanRoute(e.route) || '');
+      } else {
+        props.Mode = { select: null };
+        props.Route = text('');
+      }
+
+      // The link back to the catalogue. All three relation columns are written
+      // every time, so changing which row an entry points at — or clearing it —
+      // cannot leave a stale link behind on one of the others.
+      const refProp = REF_PROP[e.refKind];
+      Object.keys(REF_PROP).forEach(k => { props[REF_PROP[k]] = { relation: [] }; });
+      if (refProp) {
+        if (!isId(e.refId)) throw new Error('bad catalogue id');
+        await assertWritable(e.refId, token, allow);     // never link outside the trip
+        props[refProp] = { relation: [{ id: e.refId }] };
+      }
+
+      let pageId;
+      if (isId(e.notionId)) {
+        await assertWritable(e.notionId, token, allow);
+        await notion('/pages/' + e.notionId, 'PATCH', { properties: props }, token);
+        pageId = e.notionId;
+      } else {
+        const made = await notion('/pages', 'POST', {
+          parent: { database_id: itinDb }, properties: props
+        }, token);
+        pageId = made.id;
+      }
+      applied.push({ type: 'entry', id: e.id, notionId: pageId });
+      await sleep(GAP_MS);
+    } catch (err) {
+      failed.push({ type: 'entry', id: e.id, error: String(err.message || err) });
+    }
+  }
+
+  /* ── A day's start time ───────────────────────────────────────────────── */
+  for (const d of dayStarts) {
+    try {
+      if (!isId(d.id)) throw new Error('bad page id');
+      if (!isHM(d.start)) throw new Error('bad time, expected HH:MM');
+      const page = await assertWritable(d.id, token, allow);
+      if (!page.properties || !('Day start' in page.properties)) {
+        throw new Error('page has no "Day start" property');
+      }
+      await notion('/pages/' + d.id, 'PATCH', {
+        properties: { 'Day start': text(d.start) }
+      }, token);
+      applied.push({ type: 'dayStart', id: d.id, date: d.date });
+      await sleep(GAP_MS);
+    } catch (err) {
+      failed.push({ type: 'dayStart', id: d.id, error: String(err.message || err) });
+    }
+  }
+
+  /* ── Entries removed in the Build tab ─────────────────────────────────── */
+  for (const id of entryDels) {
+    try {
+      if (!isId(id)) throw new Error('bad page id');
+      await assertWritable(id, token, allow);
+      await notion('/pages/' + id, 'PATCH', { archived: true }, token);
+      applied.push({ type: 'entryDelete', notionId: id });
+      await sleep(GAP_MS);
+    } catch (err) {
+      failed.push({ type: 'entryDelete', id: id, error: String(err.message || err) });
+    }
+  }
+
   /* ── Deletions: archive, never destroy ────────────────────────────────── */
   for (const id of dels) {
     try {
@@ -275,4 +397,4 @@ exports.handler = async function (event) {
 };
 
 // Exported for tests; not part of the HTTP surface.
-exports._internal = { cleanRoute, isHM, isDate, isId };
+exports._internal = { cleanRoute, isHM, isDate, isId, MODE_NAME, REF_PROP };

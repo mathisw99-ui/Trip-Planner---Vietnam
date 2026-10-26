@@ -20,6 +20,7 @@
 const NOTION_VERSION = '2022-06-28';
 
 const DBS = {
+  itinerary: process.env.DB_ITINERARY,
   days:      process.env.DB_DAYS,
   flights:   process.env.DB_FLIGHTS,
   stays:     process.env.DB_STAYS,
@@ -47,11 +48,38 @@ const rel  = p => ((p && p.relation) || []).map(r => r.id);
 /* ── Row mappers. Left side = the app's field. Right side = Notion column. ── */
 
 const MAP = {
-  days: p => ({
+  // The id matters here: it is what the write endpoint patches when the Build
+  // tab changes a day's start time.
+  days: (p, id) => ({
+    id,
     date:     dateOnly(p['Date']),
     sleeping: txt(p['Sleeping']),
     base:     txt(p['Base']),
-    summary:  txt(p['Summary'])
+    summary:  txt(p['Summary']),
+    // HH:MM the day begins; every computed time runs forward from it.
+    dayStart: txt(p['Day start'])
+  }),
+
+  // The day plan: an ordered list of stops and travel legs. Places/Food/Stays
+  // stay the catalogue; this is what was decided, in order.
+  itinerary: (p, id) => ({
+    id,
+    name:    txt(p['Name']),
+    date:    dateOnly(p['Date']),
+    order:   num(p['Order']),
+    type:    (sel(p['Type']) || 'Stop').toLowerCase(),
+    durationMin:  num(p['Duration (min)']),
+    durationMode: (sel(p['Duration mode']) || 'Estimated').toLowerCase(),
+    mode:    (sel(p['Mode']) || '').toLowerCase() || null,
+    lat:     num(p['Lat']),   lng:    num(p['Lng']),
+    toLat:   num(p['To lat']), toLng: num(p['To lng']),
+    areaRadius: num(p['Area radius (m)']),
+    route:   txt(p['Route']),
+    // Exactly one of these is normally set; the app takes the first it finds.
+    placeId: rel(p['Place'])[0] || null,
+    foodId:  rel(p['Food'])[0]  || null,
+    stayId:  rel(p['Stay'])[0]  || null,
+    notes:   txt(p['Notes'])
   }),
 
   flights: (p, id) => ({
@@ -165,6 +193,12 @@ exports.handler = async function (event) {
     const rows = await queryAll(dbId, token);
     let out = rows.map(function (r) { return MAP[source](r.properties, r.id); });
     if (source === 'days') out.sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); });
+    if (source === 'itinerary') {
+      out.sort(function (a, b) {
+        const d = (a.date || '').localeCompare(b.date || '');
+        return d !== 0 ? d : (a.order || 0) - (b.order || 0);
+      });
+    }
     return { statusCode: 200, headers, body: JSON.stringify(out) };
   } catch (err) {
     return { statusCode: 502, headers, body: JSON.stringify({ error: String(err.message || err) }) };
