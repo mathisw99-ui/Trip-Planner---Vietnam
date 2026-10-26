@@ -356,8 +356,11 @@ a{color:var(--focus);text-underline-offset:2px}
   background:var(--ink);border:1px solid var(--rule);border-radius:2px;color:var(--paper);
   font:inherit;font-size:11.5px;padding:1px 3px;
 }
-.st__ctl input[type="number"]{width:46px}
-.st__ctl select{max-width:96px}
+.st__ctl input[type="number"]{width:44px}
+.st__ctl select{max-width:88px}
+/* The flight row's two time inputs are the widest controls in the rail; let
+   them shrink rather than push the move buttons onto a second line. */
+.st__lbl input[type="time"]{width:78px;padding:1px 2px}
 .st__del{color:var(--muted-2);font-size:15px;line-height:1;padding:0 2px;flex:none;opacity:.55}
 .st:hover .st__del,.st.is-active .st__del{opacity:1}
 .st__del:hover{color:var(--warn)}
@@ -386,8 +389,16 @@ a{color:var(--focus);text-underline-offset:2px}
   padding:7px 12px;display:none;align-items:center;gap:12px;font-size:12.5px;
   box-shadow:0 4px 18px -6px rgba(0,0,0,.8);white-space:nowrap;
 }
-.stage.picking .pick-hint{display:flex}
+.stage.picking .pick-hint,.stage.linking .pick-hint{display:flex}
 .stage.picking #map{cursor:crosshair}
+.stage.linking #map{cursor:alias}
+/* The rows you can link to, while a link is being made. */
+.st.is-linkable{box-shadow:inset 0 0 0 1px var(--t-attr)}
+.st.is-linkable .st__nm{color:var(--t-attr)}
+.st--flight{background:rgba(26,20,40,.55)}
+.st--flight .st__dot{border-radius:1px;transform:rotate(45deg)}
+.st__lbl{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted-2)}
+.st__lbl input{width:78px}
 
 /* A node that is on the day but not yet in the plan: visible, clearly not
    chosen. Clicking it adds it. */
@@ -582,6 +593,7 @@ a{color:var(--focus);text-underline-offset:2px}
       <div class="bd__clock" id="bdClock"></div>
     </div>
     <div class="bd__body" id="bdBody"></div>
+    <div id="pathListB"></div>
     <div class="bd__add" id="bdAdd"></div>
     <div class="bd__foot" id="bdFoot"></div>
   </aside>
@@ -646,7 +658,7 @@ window.SAMPLE = {
   // The day plan: what was decided, in order. Durations are the gaps between
   // the times already in the data, so the computed schedule reproduces them.
   itinerary: [
-    { id:"I01", name:"SFO → SGN", date:"2026-11-13", order:1, type:"travel", durationMin:165, durationMode:"estimated", mode:"other", lat:37.6189, lng:-122.375, toLat:10.8188, toLng:106.652 },
+    { id:"I01", name:"SFO → SGN", date:"2026-11-13", order:1, type:"flight", startTime:null, endTime:"04:45", lat:37.6189, lng:-122.375, toLat:10.8188, toLng:106.652, flightId:"F1", notes:"Lands 04:45. Departure time from SFO not recorded, so only the arrival pins the day." },
     { id:"I02", name:"Banh Mi Hong Hoa", date:"2026-11-13", order:2, type:"stop", durationMin:15, durationMode:"estimated", lat:10.7715226, lng:106.6923968, foodId:"E01" },
     { id:"I03", name:"Tao Đàn Park", date:"2026-11-13", order:3, type:"stop", durationMin:75, durationMode:"estimated", lat:10.7755796, lng:106.6920797, placeId:"P01" },
     { id:"I04", name:"Walk around Phú Nhuận", date:"2026-11-13", order:4, type:"stop", durationMin:90, durationMode:"estimated", lat:10.795, lng:106.675, areaRadius:750, placeId:"P02" },
@@ -666,7 +678,7 @@ window.SAMPLE = {
     { id:"I18", name:"Explore the quieter side of District 1", date:"2026-11-14", order:6, type:"stop", durationMin:30, durationMode:"estimated", lat:10.77, lng:106.699, areaRadius:600, placeId:"P10" },
     { id:"I19", name:"Vietnamese dessert / chè", date:"2026-11-14", order:7, type:"stop", durationMin:45, durationMode:"estimated", lat:10.77, lng:106.695, foodId:"E08" },
     { id:"I20", name:"Cocktail bar", date:"2026-11-14", order:8, type:"stop", durationMin:60, durationMode:"estimated", lat:10.7735, lng:106.7005, foodId:"E09" },
-    { id:"I21", name:"SGN → HAN", date:"2026-11-15", order:1, type:"travel", durationMin:360, durationMode:"estimated", mode:"other", lat:10.8188, lng:106.652, toLat:21.2212, toLng:105.8072 },
+    { id:"I21", name:"SGN → HAN", date:"2026-11-15", order:1, type:"flight", startTime:"08:00", endTime:"10:10", lat:10.8188, lng:106.652, toLat:21.2212, toLng:105.8072, flightId:"F2" },
     { id:"I22", name:"Walk the French Quarter and Old Quarter", date:"2026-11-15", order:2, type:"stop", durationMin:120, durationMode:"estimated", lat:21.03, lng:105.85, areaRadius:800, placeId:"P11" },
     { id:"I23", name:"MAY Kitchenware", date:"2026-11-15", order:3, type:"stop", durationMin:210, durationMode:"estimated", lat:21.0420348, lng:105.8483295, foodId:"E10" },
     { id:"I24", name:"Tầm Vị", date:"2026-11-15", order:4, type:"stop", durationMin:150, durationMode:"estimated", lat:21.0290273, lng:105.8394556, foodId:"E11" },
@@ -690,7 +702,7 @@ window.SAMPLE = {
     { id:"I42", name:"Night market Pho Co Hoa Lu", date:"2026-11-21", order:7, type:"stop", durationMin:120, durationMode:"estimated", lat:20.2633839, lng:105.9681679, foodId:"E16" },
     { id:"I43", name:"Wine At Where", date:"2026-11-21", order:8, type:"stop", durationMin:60, durationMode:"estimated", lat:20.224, lng:105.9175, foodId:"E17" },
     { id:"I44", name:"Limousine bus to Noi Bai", date:"2026-11-22", order:1, type:"travel", durationMin:180, durationMode:"manual", mode:"bus", lat:20.2244, lng:105.9167, toLat:21.2212, toLng:105.8072 },
-    { id:"I45", name:"HAN → DAD", date:"2026-11-22", order:2, type:"travel", durationMin:135, durationMode:"estimated", mode:"other", lat:21.2212, lng:105.8072, toLat:16.0439, toLng:108.1994 },
+    { id:"I45", name:"HAN → DAD", date:"2026-11-22", order:2, type:"flight", startTime:"11:15", endTime:"12:40", lat:21.2212, lng:105.8072, toLat:16.0439, toLng:108.1994, flightId:"F3" },
     { id:"I46", name:"Bếp Cuốn Đà Nẵng", date:"2026-11-22", order:3, type:"stop", durationMin:120, durationMode:"estimated", lat:16.0579628, lng:108.2451505, foodId:"E18" },
     { id:"I47", name:"Airport transfer to Hoi An", date:"2026-11-22", order:4, type:"travel", durationMin:60, durationMode:"manual", mode:"taxi", lat:16.0439, lng:108.1994, toLat:15.8801, toLng:108.338 },
     { id:"I48", name:"Lantern making class", date:"2026-11-23", order:1, type:"stop", durationMin:420, durationMode:"estimated", lat:15.8795, lng:108.3285, placeId:"P19" },
@@ -719,8 +731,11 @@ window.SAMPLE = {
     { id:"I71", name:"Confucius Temple", date:"2026-11-25", order:6, type:"stop", durationMin:20, durationMode:"estimated", lat:15.8798623, lng:108.3229872, placeId:"P31" },
     { id:"I72", name:"Ancient House", date:"2026-11-25", order:7, type:"stop", durationMin:55, durationMode:"estimated", lat:15.8764821, lng:108.3277659, placeId:"P32" },
     { id:"I73", name:"Airport transfer to Da Nang", date:"2026-11-25", order:8, type:"travel", durationMin:60, durationMode:"manual", mode:"taxi", lat:15.8801, lng:108.338, toLat:16.0439, toLng:108.1994 },
-    { id:"I74", name:"DAD → SGN", date:"2026-11-25", order:9, type:"travel", durationMin:60, durationMode:"estimated", mode:"other", lat:16.0439, lng:108.1994, toLat:10.8188, toLng:106.652 },
-    { id:"I75", name:"SGN → SFO", date:"2026-11-26", order:1, type:"travel", durationMin:60, durationMode:"estimated", mode:"other", lat:10.8188, lng:106.652, toLat:37.6189, toLng:-122.375 }
+    { id:"I74", name:"DAD → SGN", date:"2026-11-25", order:9, type:"flight", startTime:"12:10", endTime:"13:45", lat:16.0439, lng:108.1994, toLat:10.8188, toLng:106.652, flightId:"F4" },
+    { id:"I75", name:"SGN → SFO", date:"2026-11-26", order:1, type:"flight", startTime:"18:40", endTime:"17:00", lat:10.8188, lng:106.652, toLat:37.6189, toLng:-122.375, flightId:"F5" },
+    { id:"X01", name:"Through SGN and into District 1", date:"2026-11-13", order:1.5, type:"travel", durationMin:165, durationMode:"manual", mode:"taxi", lat:10.8188, lng:106.652, toLat:10.7715226, toLng:106.6923968 },
+    { id:"X02", name:"Noi Bai into the Old Quarter", date:"2026-11-15", order:1.5, type:"travel", durationMin:230, durationMode:"manual", mode:"taxi", lat:21.2212, lng:105.8072, toLat:21.0338, toLng:105.85 },
+    { id:"X03", name:"Da Nang airport into the city", date:"2026-11-22", order:2.5, type:"travel", durationMin:50, durationMode:"manual", mode:"taxi", lat:16.0439, lng:108.1994, toLat:16.0544, toLng:108.2022 }
   ],
 
   flights: [
@@ -1001,6 +1016,7 @@ window.AIRPORTS = {
   let buildFilter = '';      // the add-drawer search box
   let picking = null;        // waiting for a map click to place a new stop
   let addOpen = false;       // the add drawer, folded away by default
+  let linking = null;        // { from: entryId } while picking the other end of a leg
 
   const el = {};             // cached DOM refs, filled in cacheDom()
 
@@ -1774,6 +1790,7 @@ window.AIRPORTS = {
                  // exactly on a marker's centre by hand.
                  if (drawing) { addDrawPoint(lat, lng, true); return; }
                  if (picking) { finishPick(lat, lng); return; }
+                 if (linking) { finishLink(item.id); return; }
                  if (kind === 'cand') { addFromCatalogue(item.id); return; }
                  select(item.id);
                });
@@ -2281,6 +2298,7 @@ window.AIRPORTS = {
 
   function select(id) {
     if (drawing || picking) return; // clicks belong to the draw or pick tool
+    if (linking) { finishLink(id); return; }
     activeId = id;
     stackIds = null;
     editingTimeFor = null;
@@ -2686,22 +2704,30 @@ window.AIRPORTS = {
     if (p.auto) { editingPathId = p.id; rebuildRouted(anchors); }
   }
 
+  /* Rendered into both rails. The list used to live only beside the map, and
+     once Build became the default tab a path you had drawn was on screen with
+     no way to select or delete it — the controls were in a panel the tab
+     hides. */
   function renderPathList() {
-    const box = $('pathList');
-    if (!box) return;
+    const boxes = [$('pathList'), $('pathListB')].filter(Boolean);
+    if (!boxes.length) return;
+    const html = pathListHtml();
+    boxes.forEach(function (b) { b.innerHTML = html; });
+  }
+
+  function pathListHtml() {
     const mine = pathsOnDay();
     const elsewhere = draftPaths.length - mine.length;
-    if (!draftPaths.length) { box.innerHTML = ''; return; }
+    if (!draftPaths.length) return '';
     if (!mine.length) {
       // Say so rather than showing nothing: a path you drew yesterday still
       // exists, and silence looks like it was lost.
-      box.innerHTML = '<div class="paths"><div class="paths__none">' +
+      return '<div class="paths"><div class="paths__none">' +
         elsewhere + ' drawn path' + (elsewhere === 1 ? '' : 's') +
         ' on other days. Pick that day, or Trip, to see ' +
         (elsewhere === 1 ? 'it' : 'them') + '.</div></div>';
-      return;
     }
-    box.innerHTML = '<div class="paths">' + mine.map(function (p) {
+    return '<div class="paths">' + mine.map(function (p) {
       const mi = p.points.length > 1 ? routeMiles(p.points) + ' mi' : '';
       const synced = !!p.notionId;
       return '<div class="paths__row">' +
@@ -2749,6 +2775,8 @@ window.AIRPORTS = {
 
   function planKey() { return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+  function isHM(v) { return typeof v === 'string' && /^([01]?\d|2[0-3]):[0-5]\d$/.test(v); }
+
   /* ── Reading the plan out of Notion ──────────────────────────────────── */
 
   function planFromRaw(raw) {
@@ -2758,7 +2786,10 @@ window.AIRPORTS = {
         notionId: r.id,
         date: r.date,
         order: r.order != null ? r.order : idx + 1,
-        type: r.type === 'travel' ? 'travel' : 'stop',
+        type: r.type === 'travel' ? 'travel' : (r.type === 'flight' ? 'flight' : 'stop'),
+        startTime: r.startTime || null,
+        endTime:   r.endTime   || null,
+        flightId:  r.flightId  || null,
         name: r.name || null,
         refId: r.placeId || r.foodId || r.stayId || null,
         lat: r.lat, lng: r.lng,
@@ -2820,7 +2851,10 @@ window.AIRPORTS = {
       notionId: typeof e.notionId === 'string' ? e.notionId : null,
       date: typeof e.date === 'string' ? e.date : null,
       order: num(e.order) != null ? num(e.order) : 1,
-      type: e.type === 'travel' ? 'travel' : 'stop',
+      type: e.type === 'travel' ? 'travel' : (e.type === 'flight' ? 'flight' : 'stop'),
+      startTime: isHM(e.startTime) ? e.startTime : null,
+      endTime:   isHM(e.endTime)   ? e.endTime   : null,
+      flightId:  typeof e.flightId === 'string' ? e.flightId : null,
       name: typeof e.name === 'string' ? e.name : null,
       refId: typeof e.refId === 'string' ? e.refId : null,
       lat: pt(e.lat), lng: pt(e.lng), toLat: pt(e.toLat), toLng: pt(e.toLng),
@@ -2929,7 +2963,7 @@ window.AIRPORTS = {
   }
 
   function entryEndPos(e) {
-    if (e.type === 'travel') {
+    if (e.type === 'travel' || e.type === 'flight') {
       if (e.route && e.route.length > 1) return e.route[e.route.length - 1];
       if (e.toLat != null && e.toLng != null) return [e.toLat, e.toLng];
     }
@@ -2940,6 +2974,10 @@ window.AIRPORTS = {
     if (e.name) return e.name;
     const ref = e.refId && model.byId[e.refId];
     if (ref) return ref.title;
+    if (e.type === 'flight') {
+      const f = e.flightId && model.byId[e.flightId];
+      return f ? f.title : 'Flight';
+    }
     return e.type === 'travel' ? (MODES[e.mode] || MODES.other).label : 'Stop';
   }
 
@@ -3018,6 +3056,25 @@ window.AIRPORTS = {
     let last = null;          // the previous stop, if nothing has moved us since
 
     list.forEach(function (e, idx) {
+      /* A flight is an anchor, not an accumulation. It leaves when it leaves,
+         so its start is its scheduled departure rather than wherever the day's
+         running clock happens to have reached — and if the clock has already
+         gone past it, that overrun is the single most useful thing the day can
+         tell you, so it is flagged rather than absorbed. */
+      if (e.type === 'flight') {
+        const dep = parseHM(e.startTime), arr = parseHM(e.endTime);
+        const at = dep != null ? dep : (arr != null ? arr : t);
+        const late = (dep != null && t > dep) ? Math.round((t - dep) * 60) : 0;
+        // Arriving "before" departure is the dateline, not a short flight, so
+        // the clock stops rather than running backwards.
+        const dateline = dep != null && arr != null && arr < dep;
+        const end = (arr != null && !dateline) ? arr : at;
+        rows.push({ kind: 'flight', entry: e, start: at, end: end,
+                    late: late, dateline: dateline, dep: dep, arr: arr });
+        t = Math.max(at, end);
+        last = null;
+        return;
+      }
       if (e.type === 'travel') {
         const before = prevStop(list, idx - 1), after = nextStop(list, idx + 1);
         const est = travelEstimate(e, before, after);
@@ -3059,6 +3116,31 @@ window.AIRPORTS = {
     const e = row.entry;
     const ref = e.refId && model.byId[e.refId];
     const time = clockStr(row.start);
+
+    // A flight is its own thing on the map: a fixed-time leg between two
+    // airports, drawn as the great-circle arc the flight data already drew.
+    if (e.type === 'flight') {
+      const f = e.flightId && model.byId[e.flightId];
+      return {
+        id: e.id, kind: 'flight', geo: 'leg', mode: 'flight',
+        title: entryName(e), subtitle: 'flight',
+        dates: [e.date], time: time, booked: f ? f.booked : null,
+        durationMin: null,
+        from: { name: f ? f.from && f.from.name : null, lat: e.lat, lng: e.lng },
+        to:   { name: f ? f.to   && f.to.name   : null, lat: e.toLat, lng: e.toLng },
+        fields: [
+          ['Departs', e.startTime ? e.startTime + ' local' : 'time not recorded'],
+          ['Arrives', e.endTime ? e.endTime + ' local' : null],
+          ['Crosses the dateline', row.dateline ? 'yes — the arrival clock reads earlier' : null],
+          ['Late by', row.late ? fmtMin(row.late) : null],
+          ['Distance', (e.lat != null && e.toLat != null)
+            ? gcMiles([e.lat, e.lng], [e.toLat, e.toLng]) + ' mi great-circle' : null]
+        ],
+        notes: e.notes || (f && f.notes), link: f && f.link,
+        planned: true, seq: null
+      };
+    }
+
     const fields = [
       ['Starts', time],
       ['Ends', clockStr(row.end)],
@@ -3192,7 +3274,7 @@ window.AIRPORTS = {
 
   function duplicateEntry(id) {
     const e = plan.find(function (x) { return x.id === id; });
-    if (!e) return;
+    if (!e || e.type === 'flight') return;
     const copy = {};
     Object.keys(e).forEach(function (k) { copy[k] = e[k]; });
     copy.id = planKey(); copy.notionId = null; copy.order = e.order + 0.5; copy.dirty = true;
@@ -3282,6 +3364,15 @@ window.AIRPORTS = {
     planCommit(null);
   }
 
+  function setFlightTime(id, which, hhmm) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e || e.type !== 'flight') return;
+    const v = isHM(hhmm) ? hhmm : null;
+    if (which === 'dep') e.startTime = v; else e.endTime = v;
+    markPlanDirty(e);
+    planCommit(null);
+  }
+
   function setEntryRadius(id, m) {
     const e = plan.find(function (x) { return x.id === id; });
     if (!e) return;
@@ -3322,6 +3413,59 @@ window.AIRPORTS = {
     e.dirty = true;
     plan.push(e);
     planCommit('Leg added between the two stops.');
+  }
+
+  /* ── Linking two stops ───────────────────────────────────────────────────
+     The other way to make a path: pick a place, pick a second one, get a leg
+     between them. The line is straight by default, which is the honest shape
+     for a journey nobody has traced yet — the mode picker and the draw tool
+     are both one click away on the row it creates. */
+
+  function startLink(id) {
+    const e = plan.find(function (x) { return x.id === id; });
+    if (!e) return;
+    if (linking && linking.from === id) { cancelLink(); return; }
+    linking = { from: id };
+    el.stage.classList.add('linking');
+    el.pickText.textContent = 'Link ' + entryName(e) + ' to — pick the other place';
+    renderBuild();
+    renderMap(false);
+  }
+
+  function cancelLink() {
+    linking = null;
+    el.stage.classList.remove('linking');
+    renderBuild();
+    renderMap(false);
+  }
+
+  function finishLink(toId) {
+    if (!linking) return;
+    const fromId = linking.from;
+    if (toId === fromId) { cancelLink(); return; }
+    const a = plan.find(function (x) { return x.id === fromId; });
+    const b = plan.find(function (x) { return x.id === toId; });
+    linking = null;
+    el.stage.classList.remove('linking');
+    if (!a || !b) { renderBuild(); renderMap(false); return; }
+
+    const pa = entryEndPos(a), pb = entryPos(b);
+    if (!pa || !pb) {
+      toast('One of those has no position yet, so there is nothing to draw between.');
+      renderBuild(); renderMap(false);
+      return;
+    }
+    // Same default as an unbudgeted hop: walk if it is walkable, otherwise a cab.
+    const h = impliedHop(a, b);
+    const e = normaliseEntry({
+      id: planKey(), date: a.date, order: a.order + 0.5,
+      type: 'travel', mode: h ? h.mode : 'walk', durationMode: 'auto',
+      lat: pa[0], lng: pa[1], toLat: pb[0], toLng: pb[1],
+      name: entryName(a) + ' → ' + entryName(b), dirty: true
+    });
+    e.dirty = true;
+    plan.push(e);
+    planCommit('Linked ' + entryName(a) + ' to ' + entryName(b) + '.');
   }
 
   /* ── Picking a position off the map ──────────────────────────────────── */
@@ -3386,9 +3530,16 @@ window.AIRPORTS = {
     el.bdSub.textContent = day ? ('Day ' + day.n + (day.sleeping ? ' · ' + day.sleeping : '')) : '';
 
     const nStops = sched.rows.filter(function (r) { return r.kind === 'stop'; }).length;
+    // A day that opens with a flight is pinned by that flight's clock, so the
+    // start time has no effect and should not look as though it does.
+    const pinned = sched.rows.length && sched.rows[0].kind === 'flight';
     el.bdClock.innerHTML =
-      '<label>Start <input class="bd__start" type="time" id="bdStart" value="' +
-        esc(dayStartStr(date)) + '"></label>' +
+      (pinned
+        ? '<span title="This day opens with a flight, so its times are fixed by the ' +
+          'timetable rather than by a start time.">pinned by the flight</span>'
+        : '<label>Start <input class="bd__start" type="time" id="bdStart" value="' +
+          esc(dayStartStr(date)) + '" title="When the day begins. Every time below is ' +
+          'worked out forward from here."></label>') +
       '<span>ends <b>' + esc(clockStr(sched.end)) + '</b></span>' +
       '<span>' + nStops + (nStops === 1 ? ' stop' : ' stops') + '</span>';
 
@@ -3408,15 +3559,22 @@ window.AIRPORTS = {
   function entryRow(r, idx, sched) {
     const e = r.entry;
     const isTravel = e.type === 'travel';
+    const isFlight = e.type === 'flight';
     const item = model.byId[e.id];
     const col = item ? itemColor(item) : NEUTRAL;
     const list = sched.list;
     const pos = list.indexOf(e);
     const dayIdx = model.days.findIndex(function (d) { return d.date === e.date; });
 
-    const dur = isTravel ? r.est.mins : r.mins;
     const meta = [];
-    if (isTravel) {
+    if (isFlight) {
+      const f = e.flightId && model.byId[e.flightId];
+      const where = f ? [f.from && f.from.name, f.to && f.to.name].filter(Boolean).join(' → ') : null;
+      if (where) meta.push(esc(where));
+      if (r.dateline) meta.push('lands ' + esc(e.endTime) + ' local — crosses the dateline');
+      if (r.late) meta.push('<em>' + fmtGap(r.late) + ' past the departure</em>');
+      if (f && f.booked === false) meta.push('<em>not booked</em>');
+    } else if (isTravel) {
       const sp = modeSpeed(e.mode || 'walk', r.est.miles);
       const dist = r.est.miles != null ? r.est.miles.toFixed(1) + ' mi' : null;
       if (r.est.exact) meta.push('set by hand' + (dist ? ' · ' + dist : ''));
@@ -3435,31 +3593,64 @@ window.AIRPORTS = {
       if (warn) meta.push('<em>' + esc(warn) + '</em>');
     }
 
-    const ctl = isTravel
-      ? '<select data-emode="' + esc(e.id) + '" title="Mode of transport">' + modeOptions(e.mode || 'walk') + '</select>' +
-        '<button data-enudge="' + esc(e.id) + '|-5">&minus;5</button>' +
-        '<input type="number" min="0" step="5" value="' + dur + '" data-eset="' + esc(e.id) + '" title="Minutes"> min' +
-        '<button data-enudge="' + esc(e.id) + '|5">+5</button>' +
+    /* Every box says what its number means. A bare "165 min" next to a bare
+       "60 min" gives no clue that one is time spent travelling and the other
+       time spent at a place. */
+    const dur = isTravel ? r.est.mins : r.mins;
+    const durTip = isTravel
+      ? 'Travel time for this leg, in minutes. Type a number to fix it; ' +
+        'leave it and it is estimated from the mode and the distance.'
+      : 'Time spent at this place, in minutes. Everything after it shifts to match.';
+
+    let ctl;
+    if (isFlight) {
+      // No duration: a flight has two fixed clock times, and the day is pinned
+      // to them rather than the other way round.
+      ctl =
+        '<label class="st__lbl">dep<input type="time" value="' + esc(e.startTime || '') +
+          '" data-edep="' + esc(e.id) + '" title="Departure time, local at the origin. ' +
+          'Fixed — the day is planned around it."></label>' +
+        '<label class="st__lbl">arr<input type="time" value="' + esc(e.endTime || '') +
+          '" data-earr="' + esc(e.id) + '" title="Arrival time, local at the destination. ' +
+          'The day\'s clock restarts here."></label>';
+    } else if (isTravel) {
+      ctl =
+        '<select data-emode="' + esc(e.id) + '" title="How you make this journey. ' +
+          'Changing it re-estimates the time.">' + modeOptions(e.mode || 'walk') + '</select>' +
+        '<input type="number" min="0" step="5" value="' + dur + '" data-eset="' + esc(e.id) +
+          '" title="' + esc(durTip) + '" aria-label="Travel minutes"> min' +
         (e.durationMode === 'manual'
-          ? '<button data-eauto="' + esc(e.id) + '" class="st__pin" title="Use the estimate for this mode">auto</button>' : '') +
-        '<button data-edraw="' + esc(e.id) + '" title="Trace this leg on the map">' +
-          (e.route ? 'redraw' : 'draw') + '</button>'
-      : '<button data-enudge="' + esc(e.id) + '|-15">&minus;15</button>' +
-        '<input type="number" min="0" step="5" value="' + dur + '" data-eset="' + esc(e.id) + '" title="Minutes here"> min' +
-        '<button data-enudge="' + esc(e.id) + '|15">+15</button>' +
+          ? '<button data-eauto="' + esc(e.id) + '" class="st__pin" ' +
+            'title="Drop the typed time and go back to the estimate for this mode">auto</button>' : '') +
+        '<button data-edraw="' + esc(e.id) + '" title="Trace this leg point by point on the map">' +
+          (e.route ? 'redraw' : 'draw') + '</button>';
+    } else {
+      ctl =
+        '<input type="number" min="0" step="5" value="' + dur + '" data-eset="' + esc(e.id) +
+          '" title="' + esc(durTip) + '" aria-label="Minutes at this place"> min' +
         (e.areaRadius
           ? '<input type="number" min="50" step="50" value="' + Math.round(e.areaRadius) +
-            '" data-erad="' + esc(e.id) + '" title="Area radius in metres" style="width:60px"> m' : '') +
-        '<button data-edup="' + esc(e.id) + '" title="Go here again later today">again</button>';
+            '" data-erad="' + esc(e.id) + '" title="How far the shaded area reaches from its ' +
+            'middle, in metres" aria-label="Area radius in metres" style="width:60px"> m' : '') +
+        '<button data-elink="' + esc(e.id) + '" title="Draw a leg from here to another ' +
+          'place on this day" class="' + (linking && linking.from === e.id ? 'st__pin' : '') + '">' +
+          (linking && linking.from === e.id ? 'pick one…' : 'link') + '</button>' +
+        '<button data-edup="' + esc(e.id) + '" title="Come back here later in the day">again</button>';
+    }
 
-    return '<div class="st st--' + (isTravel ? 'travel' : 'stop') +
-             (e.id === activeId ? ' is-active' : '') + '" data-entry="' + esc(e.id) + '">' +
+    const kindCls = isFlight ? 'flight' : (isTravel ? 'travel' : 'stop');
+    return '<div class="st st--' + kindCls +
+             (e.id === activeId ? ' is-active' : '') +
+             (linking && linking.from !== e.id && !isTravel && !isFlight ? ' is-linkable' : '') +
+             '" data-entry="' + esc(e.id) + '">' +
       '<div class="st__when"><b>' + esc(clockStr(r.start)) + '</b>' +
         '<i>' + esc(clockStr(r.end)) + '</i></div>' +
       '<div class="st__main">' +
         '<div class="st__row1">' +
           '<span class="st__dot" style="--c:' + col + '"></span>' +
-          '<button class="st__nm" data-eopen="' + esc(e.id) + '">' + esc(entryName(e)) + '</button>' +
+          '<button class="st__nm" data-eopen="' + esc(e.id) + '" title="' +
+            (linking && linking.from !== e.id ? 'Link to this place' : 'Show the details') + '">' +
+            esc(entryName(e)) + '</button>' +
           '<span class="st__seq">' + (r.kind === 'stop' && item && item.seq ? item.seq : '') + '</span>' +
           '<button class="st__del" data-edel="' + esc(e.id) + '" title="Remove from the day" ' +
             'aria-label="Remove ' + esc(entryName(e)) + ' from the day">&times;</button>' +
@@ -3467,8 +3658,10 @@ window.AIRPORTS = {
         (meta.length ? '<div class="st__meta">' + meta.join(' · ') + '</div>' : '') +
         '<div class="st__ctl">' + ctl +
           '<span class="st__sep"></span>' +
-          '<button data-eup="' + esc(e.id) + '"' + (pos <= 0 ? ' disabled' : '') + ' title="Earlier">&#9650;</button>' +
-          '<button data-edown="' + esc(e.id) + '"' + (pos >= list.length - 1 ? ' disabled' : '') + ' title="Later">&#9660;</button>' +
+          '<button data-eup="' + esc(e.id) + '"' + (pos <= 0 ? ' disabled' : '') +
+            ' title="Move one slot earlier in the day">&#9650;</button>' +
+          '<button data-edown="' + esc(e.id) + '"' + (pos >= list.length - 1 ? ' disabled' : '') +
+            ' title="Move one slot later in the day">&#9660;</button>' +
           '<button class="st__day" data-edayprev="' + esc(e.id) + '"' + (dayIdx <= 0 ? ' disabled' : '') +
             ' title="Move to the day before" aria-label="Move to the day before">&#8249;|</button>' +
           '<button class="st__day" data-edaynext="' + esc(e.id) + '"' + (dayIdx >= model.days.length - 1 ? ' disabled' : '') +
@@ -3572,17 +3765,24 @@ window.AIRPORTS = {
       const est = e.type === 'travel'
         ? travelEstimate(e, prevStop(list, idx - 1), nextStop(list, idx + 1)) : null;
       const pts = e.route && e.route.length > 1 ? simplifyForStorage(e.route) : null;
+      const kind = e.type === 'travel' ? 'Travel' : (e.type === 'flight' ? 'Flight' : 'Stop');
       return {
         id: e.id,
         notionId: e.notionId || null,
         name: entryName(e),
         date: e.date,
         order: idx + 1,
-        type: e.type === 'travel' ? 'Travel' : 'Stop',
-        durationMin: e.type === 'travel'
-          ? (e.durationMode === 'manual' && e.durationMin != null ? e.durationMin : est.mins)
-          : (e.durationMin != null ? e.durationMin : DEFAULT_STOP_MIN),
-        durationMode: e.durationMode === 'manual' ? 'Manual' : 'Estimated',
+        type: kind,
+        // A flight has no duration at all: two fixed clock times instead.
+        startTime: kind === 'Flight' ? (e.startTime || null) : null,
+        endTime:   kind === 'Flight' ? (e.endTime   || null) : null,
+        flightId:  kind === 'Flight' ? (e.flightId  || null) : null,
+        durationMin: kind === 'Flight' ? null
+          : e.type === 'travel'
+            ? (e.durationMode === 'manual' && e.durationMin != null ? e.durationMin : est.mins)
+            : (e.durationMin != null ? e.durationMin : DEFAULT_STOP_MIN),
+        durationMode: kind === 'Flight' ? null
+          : (e.durationMode === 'manual' ? 'Manual' : 'Estimated'),
         mode: e.type === 'travel' ? (e.mode || 'walk') : null,
         lat: e.lat, lng: e.lng, toLat: e.toLat, toLng: e.toLng,
         areaRadius: e.areaRadius,
@@ -3742,6 +3942,7 @@ window.AIRPORTS = {
     el.list.classList.toggle('is-visible', v === 'list');
     el.legend.classList.toggle('is-off', !onMap);
     if (picking && v !== 'build') cancelPick();
+    if (linking && v !== 'build') cancelLink();
     // The plan and the catalogue are different sets of nodes, so switching
     // between Build and Map redraws rather than just revealing.
     rebuildPlan();
@@ -3819,13 +4020,19 @@ window.AIRPORTS = {
     el.bdBody.addEventListener('click', function (e) {
       const hit = function (a) { return e.target.closest('[data-' + a + ']'); };
       let b;
-      if ((b = hit('eopen')))    { select(b.dataset.eopen); return; }
+      // While linking, clicking a name picks the other end rather than
+      // opening it — that is the whole gesture.
+      if ((b = hit('eopen')))    {
+        if (linking) finishLink(b.dataset.eopen); else select(b.dataset.eopen);
+        return;
+      }
       if ((b = hit('eup')))      { moveEntry(b.dataset.eup, -1); return; }
       if ((b = hit('edown')))    { moveEntry(b.dataset.edown, 1); return; }
       if ((b = hit('edayprev'))) { shiftEntryDay(b.dataset.edayprev, -1); return; }
       if ((b = hit('edaynext'))) { shiftEntryDay(b.dataset.edaynext, 1); return; }
       if ((b = hit('edel')))     { removeEntry(b.dataset.edel); return; }
       if ((b = hit('edup')))     { duplicateEntry(b.dataset.edup); return; }
+      if ((b = hit('elink')))    { startLink(b.dataset.elink); return; }
       if ((b = hit('eauto')))    { autoDuration(b.dataset.eauto); return; }
       if ((b = hit('edraw')))    { drawForEntry(b.dataset.edraw); return; }
       if ((b = hit('enudge')))   {
@@ -3847,6 +4054,8 @@ window.AIRPORTS = {
       if ((f = e.target.closest('[data-eset]')))  { setEntryDuration(f.dataset.eset, f.value); return; }
       if ((f = e.target.closest('[data-erad]')))  { setEntryRadius(f.dataset.erad, f.value); return; }
       if ((f = e.target.closest('[data-emode]'))) { setEntryMode(f.dataset.emode, f.value); return; }
+      if ((f = e.target.closest('[data-edep]')))  { setFlightTime(f.dataset.edep, 'dep', f.value); return; }
+      if ((f = e.target.closest('[data-earr]')))  { setFlightTime(f.dataset.earr, 'arr', f.value); return; }
     });
 
     el.bdClock.addEventListener('change', function (e) {
@@ -3901,7 +4110,12 @@ window.AIRPORTS = {
       if (e.target.closest('#bdDiscard')) { discardPlanEdits(); return; }
     });
 
-    el.btnCancelPick.addEventListener('click', cancelPick);
+    el.btnCancelPick.addEventListener('click', function () {
+      if (linking) cancelLink(); else cancelPick();
+    });
+
+    // Both rails show the same path list, so both need the same handlers.
+    [$('pathList'), $('pathListB')].filter(Boolean).forEach(wirePathList);
 
     el.list.addEventListener('click', function (e) {
       const b = e.target.closest('[data-id]');
@@ -3990,7 +4204,7 @@ window.AIRPORTS = {
     el.btnCancelPath.addEventListener('click', cancelDraw);
     el.btnUndoPt.addEventListener('click', undoPoint);
 
-    const pathBox = $('pathList');
+    function wirePathList(pathBox) {
     pathBox.addEventListener('change', function (e) {
       const sel = e.target.closest('[data-path-mode]');
       if (!sel) return;
@@ -4014,6 +4228,7 @@ window.AIRPORTS = {
       const dl = e.target.closest('[data-path-del]');
       if (dl) deletePath(dl.dataset.pathDel);
     });
+    }
 
     /* ── Timeline visibility ───────────────────────────────────────────── */
     el.btnTl.addEventListener('click', function () {
@@ -4035,6 +4250,7 @@ window.AIRPORTS = {
         return;
       }
       if (picking && e.key === 'Escape') { cancelPick(); return; }
+      if (linking && e.key === 'Escape') { cancelLink(); return; }
       if (e.key === 'ArrowLeft') { stepDay(-1); }
       else if (e.key === 'ArrowRight') { stepDay(1); }
       else if (e.key === 'Escape') {
@@ -4054,7 +4270,7 @@ window.AIRPORTS = {
      'timeline', 'tlTitle', 'tlSub', 'tlBody', 'tlFoot', 'toast',
      'builder', 'bdTitle', 'bdSub', 'bdClock', 'bdBody', 'bdAdd', 'bdFoot',
      'pickHint', 'pickText', 'btnCancelPick',
-     'pathList'].forEach(function (k) { el[k] = $(k); });
+     'pathList', 'pathListB'].forEach(function (k) { el[k] = $(k); });
   }
 
   /* ── BOOT ──────────────────────────────────────────────────────────────── */

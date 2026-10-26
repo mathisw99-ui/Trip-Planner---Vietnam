@@ -256,7 +256,7 @@ all. A single `When` column on the Place could never say that.
 | `Name` | Title | What the entry is |
 | `Date` | Date | Which day. No time — see below |
 | `Order` | Number | Position within the day, low to high. The site rewrites these when you reorder |
-| `Type` | Select | `Stop` `Travel` |
+| `Type` | Select | `Stop` `Travel` `Flight` |
 | `Duration (min)` | Number | How long this takes |
 | `Duration mode` | Select | `Estimated` `Manual`. Manual means it was typed in |
 | `Mode` | Select | Travel rows only: `Walk` `Bike` `Bus` `Train` `Taxi` `Car` `Motorbike` `Ferry` `Other` |
@@ -264,16 +264,47 @@ all. A single `When` column on the Place could never say that.
 | `To lat` / `To lng` | Number | Travel rows only: the end point |
 | `Area radius (m)` | Number | Shades a circle instead of a pin, for an area rather than a point |
 | `Route` | Text | Travel rows only: a traced path, same `lat,lng; …` format as elsewhere |
+| `Start time` | Text | Flight rows only: `HH:MM` local at the origin |
+| `End time` | Text | Flight rows only: `HH:MM` local at the destination |
 | `Place` / `Food` / `Stay` | Relation | The catalogue row this stop is, if any. At most one is set |
+| `Flight` | Relation → Flights | The Flights row this entry is, for a `Flight` |
 | `Notes` | Text | |
 | `Published` | Checkbox | |
 
-### No entry stores a clock time
+### Stops and legs store no clock time
 
 Only `Duration (min)`. The day's schedule is computed forward from the Days
 row's `Day start`, so changing one duration moves everything after it and
 nothing else. A stored start time would have to be rewritten on every edit, and
 the first one missed would quietly contradict the rest.
+
+### Flights are the exception, and store nothing else
+
+A flight leaves when it leaves. A `Flight` row has `Start time` and `End time`
+and **no duration at all**, and it pins the day rather than being carried along
+by it:
+
+- The flight's own start is its scheduled departure, not wherever the day's
+  running clock has reached.
+- If the clock has already gone past that departure, the overrun is flagged on
+  the row — which is the single most useful thing a day can tell you.
+- After the flight, the clock restarts at the arrival time.
+- A day that *opens* with a flight is pinned by it, and `Day start` has no
+  effect. The site says so rather than offering a control that does nothing.
+
+`Start time` may be blank when only the arrival is known: the SFO → SGN row has
+no recorded departure, so only its 04:45 landing pins the day.
+
+**The dateline.** SGN → SFO leaves at 18:40 and lands at 17:00 the same
+calendar day. The arrival clock reads earlier than the departure because the
+flight crosses the dateline, not because it is short. The site labels this and
+stops the clock rather than computing negative time — the same decision as
+everywhere else here: no timezone arithmetic, ever.
+
+**Time at the airport is its own leg.** Landing is not arriving: immigration,
+bags and the ride into town took 2h45 on the first day. That is a `Travel` row
+after the flight, not padding inside it — *Through SGN and into District 1*,
+*Noi Bai into the Old Quarter*, *Da Nang airport into the city*.
 
 ### How a duration is decided
 

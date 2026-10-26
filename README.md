@@ -165,16 +165,20 @@ has a duration, and the clock runs forward from the day's `Day start`.
 ```
 Start 08:00    ends 19:45   9 stops
 
-08:00  Bánh Mì Huynh Hoa              1  ×
-08:15  Street stall
-       [−15][ 15 ]min[+15][again]  [▲][▼][‹|][|›]
+04:45  SFO → SGN                         ×
+04:45  San Francisco → Ho Chi Minh City
+       dep[--:--] arr[04:45]  [▲][▼][‹|][|›]
 
-08:15  ≈8 min walk (0.4 mi) to get here — not in the clock
+04:45  Through SGN and into District 1   ×
+07:30  set by hand · 5.5 mi
+       [Taxi ▾][165]min [auto][draw]  [▲][▼][‹|][|›]
+
+07:30  Bánh Mì Huynh Hoa              1  ×
+07:45  Street stall
+       [ 15 ]min [link][again]  [▲][▼][‹|][|›]
+
+07:45  ≈8 min walk (0.4 mi) to get here — not in the clock
        [ budget it as a leg ]
-
-08:15  Tao Đàn Park                   2  ×
-09:30  Nature
-       [−15][ 75 ]min[+15][again]  [▲][▼][‹|][|›]
 ```
 
 **Nothing stores a clock time.** Every start and end is computed, so changing
@@ -182,9 +186,18 @@ one duration moves everything after it and leaves everything before it alone.
 That is the whole reason the Build tab exists: the question "if we spend another
 hour here, what breaks later?" has an answer on screen rather than in your head.
 
+Every box carries a tooltip saying what its number means, because a bare
+"165 min" next to a bare "60 min" gives no clue which is travel and which is
+time at a place.
+
 What the controls do:
 
-- **Duration** — ±15 for a stop, ±5 for a leg, or type the minutes.
+- **Duration** — type the minutes. For a stop it is time there; for a leg it is
+  travel time.
+- **link** — pick this place, then pick another, and you get a leg between
+  them. Straight line by default, which is the honest shape for a journey
+  nobody has traced; the mode picker and **draw** are both on the row it
+  creates. Esc or **Cancel** backs out without making anything.
 - **again** — adds a second visit to the same place, right after the first. This
   is how the Airbnb appears three times in a day: arrive, drop the bags, sleep.
   The catalogue row is one row; the plan can point at it as often as it likes.
@@ -194,6 +207,20 @@ What the controls do:
   rather than the 15th"* is one click.
 - **×** — remove it. On the next save the Notion row is archived, not destroyed.
 - **Start** — the day's `Day start`. Everything moves with it.
+
+### Flights
+
+A flight is its own kind of row, not a leg with a variable time. It has a fixed
+departure and arrival and **no duration box**, and it pins the day rather than
+floating on it: the clock runs up to the departure, the row flags any overrun,
+and everything after starts from the arrival. A day that opens with a flight is
+pinned by it, and the start-time control is replaced by *pinned by the flight*.
+
+Time at the airport is a separate leg, because landing is not arriving.
+
+The flight home crosses the dateline — leaves Saigon 18:40, lands San Francisco
+17:00 the same day. The row says so and the clock stops rather than running
+backwards. There is no timezone arithmetic anywhere in this app, by design.
 
 ### Transport legs
 
@@ -337,6 +364,10 @@ Three shapes now, because a walk can be any of them:
   says how many are on other days so a path you drew yesterday does not look
   lost. Saving stays global — a pending path counts wherever you are.
 
+  **The list is rendered in both rails.** It used to live only beside the map,
+  and once Build became the default tab a path you had drawn was on screen with
+  no way to select or delete it: the controls were in a panel that tab hides.
+
   **Auto** snaps new segments to real streets via the public OSRM demo server.
   No key, but no uptime promise either, and the demo only serves the car profile
   — a "walking" snap follows drivable streets, which is fine for a city sketch
@@ -394,7 +425,7 @@ repeat visits, map picking, persistence and the save payload), `parse.js` and
 `hours.js` (the two parsers, case by case), `save.js` (the write endpoint
 against a mock Notion), `sync.js` (an in-page save round trip) and `bshot.js`
 (Playwright: real layout, the Netlify badge clearance, tab switching and the
-narrow breakpoint). 249 assertions plus 25 in the browser, all passing.
+narrow breakpoint). 275 assertions plus 25 in the browser, all passing.
 
 Four of those exist because the thing they check was once wrong in a way nothing
 else would have caught: the schedule must replay the source times exactly; the
@@ -454,6 +485,11 @@ are identical reports success and changes nothing.
   long anything takes. Adjust them as you go — that is what the tab is for.
 - **Reordering is buttons, not drag and drop.** ▲ ▼ moves one slot; dragging
   would be nicer and is a genuinely larger piece of work on touch.
+- **A linked leg is a straight line, not a route.** Press **draw** on it to
+  trace the real one, or **Auto** to let the router try.
+- **Flight times are not checked against the Flights database.** Edit a
+  flight's times in the Build tab and the Flights row keeps its own; the
+  itinerary entry is what the day is built from.
 - **A new place created on the map is an Itinerary row, not a Places row.** It
   carries its own coordinates and shows on the map, but it is not added to the
   catalogue, so it will not appear in the add drawer's search for other days.
