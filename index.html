@@ -29,6 +29,7 @@
   --t-other:#8a99a6;
   --focus:#7fd4ff;
   --rail-h:76px;
+  --tl-w:316px;          /* timeline rail width */
   --bar-h:52px;
   --font:"Barlow","Helvetica Neue",Helvetica,Arial,sans-serif;
   --font-c:"Barlow Condensed","Barlow","Helvetica Neue",Arial,sans-serif;
@@ -117,7 +118,8 @@ a{color:var(--focus);text-underline-offset:2px}
    Stage
    ────────────────────────────────────────────────────────────────────────── */
 .stage{position:absolute;inset:calc(var(--bar-h) + var(--rail-h) + env(safe-area-inset-top,0px)) 0 env(safe-area-inset-bottom,0px) 0}
-#map{position:absolute;inset:0;background:#0e161c}
+#map{position:absolute;top:0;bottom:0;left:0;right:var(--tl-w);background:#0e161c}
+.stage.no-tl #map{right:0}
 #map.is-hidden{visibility:hidden}
 .leaflet-container{background:#0e161c;font-family:var(--font)}
 /* Dark basemap without a tile-provider account. Scoped to the tile pane so it
@@ -125,6 +127,9 @@ a{color:var(--focus);text-underline-offset:2px}
 .leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) brightness(.72) contrast(.78) saturate(.45)}
 .leaflet-control-attribution{background:rgba(20,29,37,.8)!important;color:var(--muted-2)!important;font-size:10px}
 .leaflet-control-attribution a{color:var(--muted)!important}
+/* Leaflet's zoom control also lives top-left, where it sat on top of the path
+   toolbar. Push the whole control stack below it. */
+.leaflet-top.leaflet-left{margin-top:46px}
 .leaflet-bar a{background:var(--panel);color:var(--paper);border-color:var(--rule)}
 .leaflet-bar a:hover{background:var(--panel-2);color:var(--paper)}
 
@@ -208,6 +213,102 @@ a{color:var(--focus);text-underline-offset:2px}
 .legend.is-off{display:none}
 
 /* ──────────────────────────────────────────────────────────────────────────
+   Timeline rail — the day as a vertical schedule, with the gaps between stops
+   worked out rather than left to the reader.
+   ────────────────────────────────────────────────────────────────────────── */
+.tl{
+  position:absolute;top:0;right:0;bottom:0;width:var(--tl-w);z-index:850;
+  background:var(--panel);border-left:1px solid var(--rule);
+  display:flex;flex-direction:column;
+}
+.stage.no-tl .tl{display:none}
+.tl__head{
+  padding:11px 14px 9px;border-bottom:1px solid var(--rule);
+  display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+}
+.tl__title{font-family:var(--font-c);font-size:19px;font-weight:600}
+.tl__sub{font-size:12px;color:var(--muted-2)}
+.tl__body{flex:1;overflow-y:auto;padding:6px 0 40px}
+.tl__empty{padding:18px 16px;color:var(--muted-2);font-size:13px;line-height:1.5}
+
+.ev{display:grid;grid-template-columns:52px 13px 1fr;gap:9px;padding:5px 14px 5px 10px;align-items:start}
+.ev:hover{background:var(--panel-2)}
+.ev.is-active{background:var(--panel-2);box-shadow:inset 3px 0 0 var(--paper)}
+.ev__t{
+  font-family:var(--font-c);font-size:15px;letter-spacing:.02em;color:var(--muted);
+  text-align:right;padding-top:2px;cursor:pointer;border-radius:2px;
+}
+.ev__t:hover{color:var(--paper);background:var(--rule)}
+.ev__t.is-moved{color:var(--focus)}
+.ev__dot{width:11px;height:11px;border-radius:50%;background:var(--c,#60707c);margin-top:5px;
+  border:1.5px solid rgba(255,255,255,.75);box-shadow:0 0 0 1px rgba(6,11,15,.8)}
+.ev__dot.is-unbooked{background:transparent;border:1.5px dashed var(--warn);box-shadow:none}
+.ev__name{font-size:13.5px;line-height:1.35;cursor:pointer}
+.ev__meta{font-size:11.5px;color:var(--muted-2)}
+.ev__warn{font-size:11.5px;color:var(--warn)}
+
+/* The connector between two stops: how long the hop takes and what it leaves. */
+.gap{display:grid;grid-template-columns:52px 13px 1fr;gap:9px;padding:1px 14px 1px 10px;align-items:center}
+.gap__line{justify-self:center;width:1px;background:var(--rule);height:100%;min-height:17px}
+.gap__txt{font-size:11px;color:var(--muted-2);line-height:1.45}
+.gap--tight .gap__txt{color:var(--warn)}
+.gap--over .gap__txt{color:#ff8e7a}
+.gap__mode{color:var(--muted)}
+
+/* Inline time editor */
+.tedit{grid-column:1 / -1;display:flex;gap:5px;align-items:center;padding:6px 0 8px 52px;flex-wrap:wrap}
+.tedit button{border:1px solid var(--rule);border-radius:2px;padding:2px 7px;font-size:12px;color:var(--muted)}
+.tedit button:hover{background:var(--panel-2);color:var(--paper)}
+.tedit input{
+  background:var(--ink);border:1px solid var(--rule);border-radius:2px;color:var(--paper);
+  font:inherit;font-size:12.5px;padding:2px 5px;width:78px;
+}
+.tedit .tedit__reset{color:var(--focus);border-color:transparent}
+
+.tl__foot{border-top:1px solid var(--rule);padding:8px 12px;display:flex;gap:7px;flex-wrap:wrap}
+.btn{border:1px solid var(--rule);border-radius:2px;padding:4px 10px;font-size:12.5px;color:var(--muted)}
+.btn:hover{background:var(--panel-2);color:var(--paper)}
+.btn--on{background:var(--panel-2);color:var(--paper);border-color:var(--muted-2)}
+.btn--ghost{border-color:transparent;color:var(--muted-2)}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Path tool
+   ────────────────────────────────────────────────────────────────────────── */
+.tools{
+  position:absolute;left:12px;top:12px;z-index:600;display:flex;gap:6px;align-items:center;
+  background:rgba(27,40,49,.93);border:1px solid var(--rule);border-radius:3px;padding:5px 6px;
+  backdrop-filter:blur(3px);
+}
+.stage.drawing #map{cursor:crosshair}
+.draw-bar{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:700;
+  background:rgba(27,40,49,.96);border:1px solid var(--focus);border-radius:3px;
+  padding:7px 12px;display:none;align-items:center;gap:12px;font-size:12.5px;
+  box-shadow:0 4px 18px -6px rgba(0,0,0,.8);white-space:nowrap;
+}
+.stage.drawing .draw-bar{display:flex}
+.draw-bar__n{color:var(--muted)}
+.vertex{
+  width:13px;height:13px;border-radius:50%;background:var(--focus);
+  border:2px solid #0d1419;box-shadow:0 0 0 1px rgba(255,255,255,.55);cursor:move;
+}
+.paths{padding:4px 0 0}
+.paths__row{display:flex;align-items:center;gap:7px;padding:4px 12px;font-size:12.5px}
+.paths__row:hover{background:var(--panel-2)}
+.paths__sw{width:10px;height:10px;border-radius:2px;background:var(--focus);flex:none}
+.paths__mi{color:var(--muted-2);font-size:11px;margin-left:5px}
+.paths__nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;text-align:left}
+.paths__x{color:var(--muted-2);font-size:15px;line-height:1;padding:0 3px}
+.paths__x:hover{color:var(--warn)}
+.toast{
+  position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:950;
+  background:var(--panel-2);border:1px solid var(--rule);border-radius:3px;
+  padding:7px 14px;font-size:12.5px;color:var(--paper);opacity:0;pointer-events:none;
+  transition:opacity .18s ease;box-shadow:0 4px 16px -6px rgba(0,0,0,.8);max-width:70%;
+}
+.toast.is-on{opacity:1}
+
+/* ──────────────────────────────────────────────────────────────────────────
    Detail panel
    ────────────────────────────────────────────────────────────────────────── */
 .detail{
@@ -237,7 +338,7 @@ a{color:var(--focus);text-underline-offset:2px}
 /* ──────────────────────────────────────────────────────────────────────────
    List view
    ────────────────────────────────────────────────────────────────────────── */
-#list{position:absolute;inset:0;overflow-y:auto;padding:0 0 60px;display:none}
+#list{position:absolute;inset:0;overflow-y:auto;padding:0 0 60px;display:none;z-index:860;background:var(--ink)}
 #list.is-visible{display:block}
 .dayblock{border-bottom:1px solid var(--rule)}
 .dayblock__head{
@@ -262,6 +363,13 @@ a{color:var(--focus);text-underline-offset:2px}
 .empty{padding:16px 20px;color:var(--muted-2);font-size:13.5px}
 .list__intro{padding:18px 20px 4px;color:var(--muted);font-size:13.5px;max-width:62ch}
 
+@media (max-width:980px){
+  /* Not enough width for map and rail side by side: the rail becomes a sheet
+     over the map, opened from the toolbar. */
+  #map{right:0}
+  .tl{width:min(340px,86vw);box-shadow:-10px 0 30px -12px rgba(0,0,0,.8)}
+  .stage:not(.tl-open) .tl{display:none}
+}
 @media (max-width:720px){
   :root{--rail-h:70px}
   .bar__dates{display:none}
@@ -291,8 +399,22 @@ a{color:var(--focus);text-underline-offset:2px}
   <button class="rail__nav" id="railNext" aria-label="Next day">&#8250;</button>
 </nav>
 
-<main class="stage">
+<main class="stage" id="stage">
   <div id="map"></div>
+
+  <div class="tools" id="tools">
+    <button class="btn" id="btnPath">Add path</button>
+    <button class="btn" id="btnAuto" aria-pressed="false" title="Snap new segments to real streets">Auto</button>
+    <button class="btn btn--ghost" id="btnTl" title="Show or hide the day timeline">Timeline</button>
+  </div>
+
+  <div class="draw-bar" id="drawBar" role="status">
+    <span id="drawHint">Click the map to place points</span>
+    <span class="draw-bar__n" id="drawCount">0 points</span>
+    <button class="btn" id="btnUndoPt">Undo point</button>
+    <button class="btn btn--on" id="btnEndPath">End path</button>
+    <button class="btn btn--ghost" id="btnCancelPath">Cancel</button>
+  </div>
 
   <section id="list" role="tabpanel" aria-labelledby="tabList"></section>
 
@@ -307,6 +429,18 @@ a{color:var(--focus);text-underline-offset:2px}
       <div class="legend__modes" id="legendModes"></div>
     </div>
   </div>
+
+  <aside class="tl" id="timeline" aria-label="Day timeline">
+    <div class="tl__head">
+      <span class="tl__title" id="tlTitle">Timeline</span>
+      <span class="tl__sub" id="tlSub"></span>
+    </div>
+    <div class="tl__body" id="tlBody"></div>
+    <div id="pathList"></div>
+    <div class="tl__foot" id="tlFoot"></div>
+  </aside>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <aside class="detail" id="detail" aria-live="polite">
     <button class="detail__close" id="detailClose" aria-label="Close details">&times;</button>
@@ -423,16 +557,16 @@ window.SAMPLE = {
 
   places: [
     { id:"P01", name:"Tao Đàn Park", lat:10.7755796, lng:106.6920797, date:"2026-11-13", time:"07:45", category:"Nature",   link:null, booked:null, notes:"Somewhere to sit and eat the banh mi." },
-    { id:"P02", name:"Walk around Phú Nhuận", route:"10.79444,106.66936; 10.7930,106.6730; 10.7950,106.6775; 10.7975,106.6800", lat:10.7944422, lng:106.6693599, date:"2026-11-13", time:"09:00", category:"Other", link:null, booked:null, notes:"Route: Đặng Văn Ngữ → Nguyễn Đình Chiểu → Phan Đăng Lưu." },
-    { id:"P03", name:"Walk around District 3", route:"10.7866,106.6880; 10.7840,106.6905; 10.7828,106.6935; 10.78266,106.69592; 10.7845,106.6978", lat:10.7866, lng:106.688, date:"2026-11-13", time:"15:30", category:"Other", link:null, booked:null, notes:"Tree-lined streets, older architecture and local cafés. Route: Võ Thị Sáu → Nguyễn Đình Chiểu → Nam Kỳ Khởi Nghĩa → Hồ Xuân Hương → Turtle Lake." },
+    { id:"P02", name:"Walk around Phú Nhuận", lat:10.795, lng:106.675, areaRadius:750, date:"2026-11-13", time:"09:00", category:"Other", link:null, booked:null, notes:"Route: Đặng Văn Ngữ → Nguyễn Đình Chiểu → Phan Đăng Lưu." },
+    { id:"P03", name:"Walk around District 3", lat:10.7827, lng:106.694, areaRadius:700, date:"2026-11-13", time:"15:30", category:"Other", link:null, booked:null, notes:"Tree-lined streets, older architecture and local cafés. Route: Võ Thị Sáu → Nguyễn Đình Chiểu → Nam Kỳ Khởi Nghĩa → Hồ Xuân Hương → Turtle Lake." },
     { id:"P04", name:"War Remnants Museum", lat:10.7795106, lng:106.6920916, date:"2026-11-13", time:"16:15", category:"Museum", link:null, booked:null, notes:"Check closing time before going — it shuts in the late afternoon." },
     { id:"P05", name:"The Cafe Apartments", lat:10.7740888, lng:106.7040596, date:"2026-11-13", time:"17:45", category:"Shopping", link:null, booked:null, notes:"A historic nine-story residential block converted into a vertical maze of independent coffee shops, boutiques and creative studios." },
-    { id:"P06", name:"District 1 evening walk", route:"10.77409,106.70406; 10.7760,106.7035; 10.7745,106.7020; 10.7768,106.7045; 10.7780,106.7030", lat:10.7740888, lng:106.7040596, date:"2026-11-13", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Nguyễn Huệ → Đồng Khởi → Tôn Thất Thiệp." },
-    { id:"P07", name:"Walk around Chợ Lớn / District 5", lat:10.7535, lng:106.6585, date:"2026-11-14", time:"09:30", category:"Other", link:null, booked:null, notes:"Saigon's historic Chinese quarter." },
+    { id:"P06", name:"District 1 evening walk", lat:10.776, lng:106.703, areaRadius:450, date:"2026-11-13", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Nguyễn Huệ → Đồng Khởi → Tôn Thất Thiệp." },
+    { id:"P07", name:"Walk around Chợ Lớn / District 5", lat:10.7535, lng:106.6585, areaRadius:900, date:"2026-11-14", time:"09:30", category:"Other", link:null, booked:null, notes:"Saigon's historic Chinese quarter." },
     { id:"P08", name:"Bình Tây Market", lat:10.7493638, lng:106.6510455, date:"2026-11-14", time:"10:45", category:"Shopping", link:null, booked:null, notes:"Don't spend hours inside the market itself. The fun part is actually walking around the neighbourhood surrounding it." },
     { id:"P09", name:"Saigon Michelin-rated street food tour", lat:10.7720, lng:106.6980, date:"2026-11-14", time:"15:00", category:"Food tour", link:"https://www.getyourguide.com/ho-chi-minh-city-l272/saigon-michelin-rated-street-food-tour-with-female-rider-t1262941/", booked:false, notes:"On the to-book list. Time is a guess — set it once you book a slot." },
-    { id:"P10", name:"Explore the quieter side of District 1", route:"10.76528,106.69464; 10.7675,106.6975; 10.7700,106.7005; 10.7720,106.7025; 10.7745,106.7020", lat:10.7652819, lng:106.694635, date:"2026-11-14", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Đề Thám → Nguyễn Thái Bình → Tôn Thất Đạm → Hồ Tùng Mậu → Nguyễn Huệ. Avoid Bùi Viện." },
-    { id:"P11", name:"Walk the French Quarter and Old Quarter", route:"21.02867,105.85215; 21.0310,105.8530; 21.0335,105.8505; 21.0310,105.8480; 21.0270,105.8490", lat:21.0286669, lng:105.8521484, date:"2026-11-15", time:"14:00", category:"Other", link:null, booked:null, notes:"First afternoon in Hanoi, straight off the morning flight." },
+    { id:"P10", name:"Explore the quieter side of District 1", lat:10.77, lng:106.699, areaRadius:600, date:"2026-11-14", time:"20:30", category:"Other", link:null, booked:null, notes:"Route: Đề Thám → Nguyễn Thái Bình → Tôn Thất Đạm → Hồ Tùng Mậu → Nguyễn Huệ. Avoid Bùi Viện." },
+    { id:"P11", name:"Walk the French Quarter and Old Quarter", lat:21.03, lng:105.85, areaRadius:800, date:"2026-11-15", time:"14:00", category:"Other", link:null, booked:null, notes:"First afternoon in Hanoi, straight off the morning flight." },
     { id:"P12", name:"Bat Trang Pottery Museum", lat:20.9730338, lng:105.9162085, date:"2026-11-16", time:"09:30", category:"Museum", link:null, booked:null, notes:"Amazing architecture. Out in Bat Trang village, roughly 30–40 min from the Old Quarter — check the travel time against the bus pickup that evening." },
     { id:"P13", name:"Tony Eats Hanoi street food tour", lat:21.0345, lng:105.8510, date:"2026-11-16", time:"12:00", category:"Food tour", link:"https://www.viator.com/tours/Hanoi/Taste-Hanois-Street-Food-Small-Group-Vegan-Friendly-Tour/d351-5538064P2", booked:false, notes:"$35. WhatsApp +84 96 357 21 59. On the to-book list. Placed on 16 Nov rather than 15 Nov — landing at 10:10 leaves little slack for a midday start the same day." },
     { id:"P14", name:"Hang Mua", lat:20.232092, lng:105.9405632, date:"2026-11-21", time:"07:00", category:"Nature", link:null, booked:null, notes:"20 min uphill walk. Go early to beat the crowds and the heat." },
@@ -442,8 +576,8 @@ window.SAMPLE = {
     { id:"P18", name:"Trang An boat tour", lat:20.2527855, lng:105.918304, date:"2026-11-21", time:"15:00", category:"Activity", link:null, booked:null, notes:"3 h. Go with Trang An, take route 3. No need to book in advance. 300k VND." },
     { id:"P19", name:"Lantern making class", lat:15.8795, lng:108.3285, date:"2026-11-23", time:"10:00", category:"Activity", link:null, booked:false, notes:"Book via KLOOK. Time is a guess — set it once booked." },
     { id:"P20", name:"Boat ride and lantern release", lat:15.8770, lng:108.3300, date:"2026-11-23", time:"17:00", category:"Activity", link:null, booked:false, notes:"Book via KLOOK. 5pm as stated." },
-    { id:"P21", name:"Explore the Ancient Town", route:"15.87709,108.32607; 15.8762,108.3300; 15.87673,108.33277; 15.8755,108.3330", lat:15.8770873, lng:108.3260704, date:"2026-11-23", time:"19:30", category:"Other", link:null, booked:null, notes:"Dinner and a wander after the lantern release." },
-    { id:"P22", name:"Bike or walk around the old town", route:"15.87709,108.32607; 15.87813,108.32716; 15.87648,108.32777; 15.87729,108.32955; 15.87714,108.33426", lat:15.8770873, lng:108.3260704, date:"2026-11-24", time:"08:30", category:"Other", link:null, booked:null, notes:null },
+    { id:"P21", name:"Explore the Ancient Town", route:"15.87709,108.32607; 15.8762,108.3300; 15.87673,108.33277; 15.8755,108.3330", lat:15.8775, lng:108.329, areaRadius:450, date:"2026-11-23", time:"19:30", category:"Other", link:null, booked:null, notes:"Dinner and a wander after the lantern release." },
+    { id:"P22", name:"Bike or walk around the old town", route:"15.87709,108.32607; 15.87813,108.32716; 15.87648,108.32777; 15.87729,108.32955; 15.87714,108.33426", lat:15.878, lng:108.3285, areaRadius:500, date:"2026-11-24", time:"08:30", category:"Other", link:null, booked:null, notes:null },
     { id:"P23", name:"Cooking class", lat:15.8800, lng:108.3300, date:"2026-11-24", time:"10:00", category:"Activity", link:null, booked:false, notes:"2 h, 10am as stated. Book via KLOOK." },
     { id:"P24", name:"Museum of Trade Ceramics", lat:15.8772894, lng:108.3295509, date:"2026-11-24", time:"14:00", category:"Museum", link:null, booked:null, notes:"120,000 VND / about $5." },
     { id:"P25", name:"Precious Heritage Museum", lat:15.8771398, lng:108.3342634, date:"2026-11-24", time:"14:45", category:"Museum", link:null, booked:null, notes:"Free entrance." },
@@ -620,6 +754,16 @@ window.AIRPORTS = {
   let bootError = null;
   let colourMode = 'type';   // 'type' | 'time' — what the NODE fill encodes
   let stackIds = null;       // member ids when a cluster's list is open
+  let timeOverrides = {};    // itemId -> "HH:MM", edits made here rather than in Notion
+  let draftPaths = [];       // paths drawn on the map, see PATH TOOL
+  let drawing = null;        // in-progress path while the draw tool is active
+  let editingPathId = null;  // path whose vertices are draggable
+  let tlOpen = true;
+  let autoRoute = false;
+  let editingTimeFor = null; // itemId whose inline time editor is open
+  let pathLayer = null;      // draft paths live here, separate from the day layer
+  let editSecret = '';       // passphrase for the write endpoint, if set
+  let saving = false;
 
   const el = {};             // cached DOM refs, filled in cacheDom()
 
@@ -648,6 +792,38 @@ window.AIRPORTS = {
   // folded into it, so the threshold is zoom-dependent for free: zoom in and
   // the same nodes drift apart past it and separate again.
   const CLUSTER_PX = 34;
+
+  /* ── Travel estimates ───────────────────────────────────────────────────
+     Door-to-door speeds in mph, deliberately slower than the vehicle's cruising
+     speed: they stand in for the whole hop including waiting, parking and
+     getting lost. The straight-line distance they are applied to is shorter
+     than the real route, so DETOUR scales it up — 1.3 is the usual rule of
+     thumb for city street grids.
+     These are estimates and the UI says so. Anything with a real duration from
+     Notion uses that instead.                                              */
+  const SPEED_MPH = {
+    walk: 2.8, bike: 8, motorbike: 18, taxi: 14, car: 14,
+    bus: 18, train: 35, ferry: 12, other: 12
+  };
+  const DETOUR = 1.3;
+  const WALK_LIMIT_MI = 1.2;   // above this, assume you would not walk it
+
+  // Public OSRM demo server. No key, but no uptime promise either, and the demo
+  // only serves the car profile — a "walking" snap follows drivable streets,
+  // which is close enough for a sketch in a city and wrong in a pedestrian zone.
+  const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
+  const OSRM_TIMEOUT_MS = 6000;
+
+  const LS_TIMES = 'trip.times.v1';
+  const LS_PATHS = 'trip.paths.v1';
+  const LS_SECRET = 'trip.secret.v1';
+
+  const SAVE_API = '/.netlify/functions/save-trip-data';
+  // Notion caps a rich-text value at 2000 characters, which is about 95
+  // coordinate pairs. Simplify here rather than letting the server thin it, so
+  // the path that gets saved is the one that was on screen.
+  const ROUTE_MAX_PTS = 90;
+  const SIMPLIFY_START_M = 4;    // metres; doubles until the path fits
 
   const MODES = {
     flight:    { dash: '1 13',     weight: 3.5, cap: 'round', label: 'Flight' },
@@ -804,6 +980,61 @@ window.AIRPORTS = {
     return Math.round(2 * 3958.8 * Math.asin(Math.min(1, Math.sqrt(dl))));
   }
 
+  /* ── Simplification ─────────────────────────────────────────────────────
+     Douglas-Peucker. An auto-routed path comes back with hundreds of points
+     and Notion will not hold that in one value, so the line is reduced to the
+     points that actually define its shape. Endpoints are never dropped.
+     Distances are computed in a local flat projection, which is accurate
+     enough over the few kilometres a walking route covers and far cheaper than
+     a spherical calculation per point.
+     ───────────────────────────────────────────────────────────────────────── */
+
+  function perpDistM(pt, a, b) {
+    const latRad = a[0] * R;
+    const mx = 111320 * Math.cos(latRad), my = 110540;
+    const px = pt[1] * mx, py = pt[0] * my;
+    const ax = a[1] * mx, ay = a[0] * my;
+    const bx = b[1] * mx, by = b[0] * my;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.hypot(px - ax, py - ay);
+    let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function rdp(pts, tol) {
+    if (pts.length < 3) return pts.slice();
+    let maxD = -1, idx = 0;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const d = perpDistM(pts[i], pts[0], pts[pts.length - 1]);
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (maxD <= tol) return [pts[0], pts[pts.length - 1]];
+    const left = rdp(pts.slice(0, idx + 1), tol);
+    const right = rdp(pts.slice(idx), tol);
+    return left.slice(0, -1).concat(right);
+  }
+
+  // Loosen the tolerance until the path fits, so the result is always storable
+  // however wiggly the input.
+  function simplifyForStorage(pts) {
+    if (!pts || pts.length <= ROUTE_MAX_PTS) return pts ? pts.slice() : [];
+    let tol = SIMPLIFY_START_M, out = pts;
+    for (let i = 0; i < 24 && out.length > ROUTE_MAX_PTS; i++) {
+      out = rdp(pts, tol);
+      tol *= 2;
+    }
+    if (out.length > ROUTE_MAX_PTS) {
+      // Pathological input: fall back to evenly spaced points, keeping the ends.
+      const step = (pts.length - 1) / (ROUTE_MAX_PTS - 1);
+      out = [];
+      for (let i = 0; i < ROUTE_MAX_PTS; i++) out.push(pts[Math.round(i * step)]);
+      out[out.length - 1] = pts[pts.length - 1];
+    }
+    return out;
+  }
+
   /* ── DATA LOADING ──────────────────────────────────────────────────────── */
 
   // The single swap point between sample data and live Notion. Both paths must
@@ -850,6 +1081,7 @@ window.AIRPORTS = {
         ['Price', f.price != null ? '$' + f.price : null]
       ];
       items.push({
+        durationMin: f.durationMin != null ? f.durationMin : null,
         id: f.id, kind: 'flight', geo: 'leg', mode: 'flight',
         title: f.from + ' → ' + f.to,
         subtitle: from.name + ' to ' + to.name,
@@ -908,7 +1140,11 @@ window.AIRPORTS = {
           [A.derived ? t.fromName : null, B.derived ? t.toName : null]
             .filter(Boolean).join(' and ')]);
       }
+      const legRoute = parseRoute(t.route);
       items.push({
+        durationMin: t.durationMin != null ? t.durationMin : null,
+        route: legRoute,
+        drawnOnSite: !!t.drawnOnSite,
         id: t.id, kind: 'transport', geo: 'leg', mode: t.mode || 'other',
         title: t.label || (t.fromName + ' → ' + t.toName),
         subtitle: t.fromName + ' → ' + t.toName,
@@ -948,9 +1184,11 @@ window.AIRPORTS = {
         title: p.name, subtitle: p.category || null,
         dates: [p.date], time: p.time, booked: p.booked,
         lat: lat, lng: lng, route: route,
+        areaRadius: (p.areaRadius != null && p.areaRadius > 0) ? p.areaRadius : null,
         fields: [
           ['Category', p.category],
           ['Time', p.time],
+          ['Area', p.areaRadius ? Math.round(p.areaRadius) + ' m across the middle' : null],
           ['Walk', route ? route.length + ' points, ' + routeMiles(route) + ' mi' : null]
         ],
         notes: p.notes, link: p.link
@@ -983,9 +1221,12 @@ window.AIRPORTS = {
     return model.items.filter(function (i) { return i.dates.indexOf(date) !== -1; });
   }
 
-  function sortByTime(list) {
+  // `get` lets callers sort by the effective (possibly overridden) time rather
+  // than the one baked into the item.
+  function sortByTime(list, get) {
+    const read = get || function (i) { return i.time; };
     return list.slice().sort(function (a, b) {
-      const ta = parseHM(a.time), tb = parseHM(b.time);
+      const ta = parseHM(read(a)), tb = parseHM(read(b));
       if (ta == null && tb == null) return 0;
       if (ta == null) return 1;
       if (tb == null) return -1;
@@ -1011,6 +1252,106 @@ window.AIRPORTS = {
   // One entry point so the list view always matches what the map draws.
   function itemColor(i) { return i.geo === 'leg' ? legColor(i) : nodeColor(i); }
 
+  /* ──────────────────────────────────────────────────────────────────────
+     LOCAL EDITS
+     Times you nudge and paths you draw are kept in this browser, not written
+     back to Notion: the Netlify function is read-only by design and the site
+     is on a public URL, so a write endpoint would let anyone who found it edit
+     the trip. Everything here therefore offers a copy-out instead.
+     Every read and write is wrapped: storage throws in private windows and
+     comes back empty when site data is cleared, and neither should break the
+     page.
+     ────────────────────────────────────────────────────────────────────── */
+
+  function lsGet(key, fallback) {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return fallback;
+      const v = JSON.parse(raw);
+      return v == null ? fallback : v;
+    } catch (e) { return fallback; }
+  }
+
+  function lsSet(key, value) {
+    try { window.localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { toast('Could not save locally — private window or storage full.'); return false; }
+  }
+
+  let toastTimer = null;
+  function toast(msg) {
+    if (!el.toast) return;
+    el.toast.textContent = msg;
+    el.toast.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.toast.classList.remove('is-on'); }, 2600);
+  }
+
+  function copyText(text, okMsg) {
+    const done = function () { toast(okMsg || 'Copied'); };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+      } else { fallbackCopy(text, done); }
+    } catch (e) { fallbackCopy(text, done); }
+  }
+
+  // Clipboard API needs a secure context and a user gesture; this works where
+  // it does not.
+  function fallbackCopy(text, done) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:absolute;left:-9999px;top:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      done();
+    } catch (e) { toast('Copy failed — select the value and copy it by hand.'); }
+  }
+
+  /* ── Effective time: an override wins over whatever Notion says ───────── */
+
+  function timeOf(item) {
+    if (!item) return null;
+    const o = timeOverrides[item.id];
+    return o || item.time;
+  }
+
+  function isMoved(item) {
+    const o = timeOverrides[item.id];
+    return !!o && o !== item.time;
+  }
+
+  function setTimeOverride(id, hhmm) {
+    const item = model.byId[id];
+    if (!item) return;
+    if (!hhmm || hhmm === item.time) delete timeOverrides[id];
+    else timeOverrides[id] = hhmm;
+    lsSet(LS_TIMES, timeOverrides);
+    refreshAll();
+  }
+
+  function clampHM(h) {                      // keep nudges inside one day
+    return Math.max(0, Math.min(23.9833, h));
+  }
+
+  function hmToStr(h) {
+    const hh = Math.floor(h);
+    const mm = Math.round((h - hh) * 60);
+    const carry = mm === 60;
+    return String((carry ? hh + 1 : hh) % 24).padStart(2, '0') + ':' +
+           String(carry ? 0 : mm).padStart(2, '0');
+  }
+
+  function nudgeTime(id, mins) {
+    const item = model.byId[id];
+    const base = parseHM(timeOf(item));
+    if (base == null) return;
+    setTimeOverride(id, hmToStr(clampHM(base + mins / 60)));
+  }
+
   /* ── MAP ───────────────────────────────────────────────────────────────── */
 
   function initMap() {
@@ -1030,10 +1371,16 @@ window.AIRPORTS = {
     // Bottom to top: amber unbooked halo, dark casing, coloured line. The
     // casing is what makes a thin dashed path legible over pale roads — a glow
     // alone washes out against a light background.
+    map.createPane('areas').style.zIndex = 360;
     map.createPane('legHalo').style.zIndex = 370;
     map.createPane('legCase').style.zIndex = 380;
     map.createPane('legs').style.zIndex = 390;
     dayLayer = L.layerGroup().addTo(map);
+    pathLayer = L.layerGroup().addTo(map);
+
+    map.on('click', function (e) {
+      if (drawing) addDrawPoint(e.latlng.lat, e.latlng.lng, false);
+    });
 
     // Cluster membership is a function of zoom, so it has to be recomputed on
     // every zoom change. Never re-fit here: that would fight the user's own
@@ -1179,7 +1526,13 @@ window.AIRPORTS = {
     if (lat == null || lng == null) return null;
     const m = L.marker([lat, lng], { icon: nodeIcon(item, kind), riseOnHover: true })
                .bindTooltip(label || item.title, { className: 'tip', direction: 'top', offset: [0, -10] })
-               .on('click', function () { select(item.id); });
+               .on('click', function () {
+                 // While drawing, a node is a snap target that also ends the
+                 // path — the behaviour asked for, and it beats trying to click
+                 // exactly on a marker's centre by hand.
+                 if (drawing) { addDrawPoint(lat, lng, true); return; }
+                 select(item.id);
+               });
     m.addTo(dayLayer);
     return m;
   }
@@ -1188,7 +1541,11 @@ window.AIRPORTS = {
     const a = item.from, b = item.to;
     if (a.lat == null || b.lat == null) return [];
     const style = MODES[item.mode] || MODES.other;
-    const pts = greatCircle([a.lat, a.lng], [b.lat, b.lng], item.mode === 'flight' ? 96 : 32);
+    // A traced route wins over the computed arc: it is the real path someone
+    // walked out on the map rather than a line between two points.
+    const pts = item.route && item.route.length > 1
+      ? item.route.slice()
+      : greatCircle([a.lat, a.lng], [b.lat, b.lng], item.mode === 'flight' ? 96 : 32);
     const colour = legColor(item);
     const bounds = [];
 
@@ -1255,6 +1612,20 @@ window.AIRPORTS = {
     addNode(item, end[0], end[1], 'waypoint', item.title + ' — end');
   }
 
+  // An entry that is a neighbourhood rather than a pin — "walk around District
+  // 3". A soft disc says "somewhere in here" without inventing a route through
+  // streets nobody picked yet.
+  function drawArea(item) {
+    const c = nodeColor(item);
+    L.circle([item.lat, item.lng], {
+      pane: 'areas', radius: item.areaRadius,
+      color: c, weight: 1.5, opacity: 0.55, dashArray: '3 5',
+      fillColor: c, fillOpacity: 0.1, interactive: true
+    }).on('click', function () { select(item.id); })
+      .bindTooltip(item.title, { className: 'tip', sticky: true })
+      .addTo(dayLayer);
+  }
+
   function renderMap(fit) {
     if (!map) return;
     dayLayer.clearLayers();
@@ -1262,11 +1633,25 @@ window.AIRPORTS = {
     const bounds = [];
 
     // Legs first: their endpoints are drawn as hubs and never clustered.
+    // A path that has been saved exists twice: as a local draft (still
+    // editable) and as the Transport row it became. Draw only the draft, or
+    // the two render on top of each other.
+    const savedIds = {};
+    draftPaths.forEach(function (p) { if (p.notionId) savedIds[p.notionId] = true; });
+
     const points = [];
     list.forEach(function (i) {
+      if (i.geo === 'leg' && savedIds[i.id]) return;
       if (i.geo === 'leg') {
         drawLeg(i).forEach(function (p) { bounds.push(p); });
       } else if (i.lat != null && i.lng != null) {
+        if (i.areaRadius) {
+          drawArea(i);
+          // Keep the whole disc in view, not just its centre.
+          const dLat = i.areaRadius / 111320;
+          const dLng = i.areaRadius / (111320 * Math.cos(i.lat * R));
+          bounds.push([i.lat - dLat, i.lng - dLng], [i.lat + dLat, i.lng + dLng]);
+        }
         if (i.route) {
           drawRoute(i);
           i.route.forEach(function (pt) { bounds.push(pt); });
@@ -1287,13 +1672,331 @@ window.AIRPORTS = {
     map.invalidateSize();
   }
 
+  /* ──────────────────────────────────────────────────────────────────────
+     TIMELINE
+     The day as a vertical schedule. The value is in the gaps: between each
+     pair of stops it works out how long the hop takes and therefore how long
+     you actually get at the first one — which is the number that tells you
+     whether a plan holds together.
+     ────────────────────────────────────────────────────────────────────── */
+
+  function positionOf(i) {
+    if (i.geo === 'leg') return i.to && i.to.lat != null ? [i.to.lat, i.to.lng] : null;
+    return i.lat != null ? [i.lat, i.lng] : null;
+  }
+
+  function startOf(i) {
+    if (i.geo === 'leg') return i.from && i.from.lat != null ? [i.from.lat, i.from.lng] : null;
+    return i.lat != null ? [i.lat, i.lng] : null;
+  }
+
+  // How long to get from one stop to the next, and how sure we are.
+  // Order of preference: a real duration recorded in Notion, then a distance
+  // estimate, then nothing at all — never a confident-looking guess.
+  function hop(from, to) {
+    // A leg carries its own duration, which beats any estimate.
+    if (to.geo === 'leg' && to.durationMin != null) {
+      return { mins: to.durationMin, mode: to.mode, exact: true };
+    }
+    const a = positionOf(from), b = startOf(to);
+    if (!a || !b) return null;
+
+    const miles = gcMilesExact(a, b) * DETOUR;
+    if (miles < 0.03) return { mins: 0, mode: 'walk', exact: false, miles: miles };
+
+    const mode = to.geo === 'leg' ? (to.mode || 'other')
+               : (miles <= WALK_LIMIT_MI ? 'walk' : 'taxi');
+    const mph = SPEED_MPH[mode] || SPEED_MPH.other;
+    return { mins: Math.round(miles / mph * 60), mode: mode, exact: false, miles: miles };
+  }
+
+  // Items that can sit on a timeline: they need a time to be placed at all.
+  function timelineItems(date) {
+    return sortByTime(itemsOn(date).filter(function (i) {
+      return parseHM(timeOf(i)) != null;
+    }), timeOf);
+  }
+
+  function fmtGap(n) {
+    if (n == null) return '';
+    const a = Math.abs(Math.round(n));
+    if (a < 60) return a + ' min';
+    const h = Math.floor(a / 60), m = a % 60;
+    return h + ' h' + (m ? ' ' + m + ' min' : '');
+  }
+
+  // Parses "06:00–22:00 daily" / "10:00–13:50 and 16:00–20:50" into ranges.
+  // Deliberately strict: anything it cannot read with confidence returns null
+  // and no warning is shown, because a false "closed!" is worse than silence.
+  function openRanges(str) {
+    if (!str) return null;
+    const out = [];
+    const re = /(\d{1,2})[:.](\d{2})\s*(?:am|pm)?\s*[–—\-]\s*(\d{1,2})[:.](\d{2})\s*(am|pm)?/gi;
+    let m;
+    while ((m = re.exec(str))) {
+      let a = +m[1] + (+m[2]) / 60;
+      let b = +m[3] + (+m[4]) / 60;
+      const suffix = (m[5] || '').toLowerCase();
+      if (suffix === 'pm' && b < 12) b += 12;
+      if (b <= a) b += 24;                       // closes after midnight
+      out.push([a, b]);
+    }
+    return out.length ? out : null;
+  }
+
+  function closedWarning(item) {
+    const hours = (item.fields || []).find(function (f) { return f[0] === 'Open'; });
+    const ranges = openRanges(hours && hours[1]);
+    const t = parseHM(timeOf(item));
+    if (!ranges || t == null) return null;
+    const inside = ranges.some(function (r) {
+      return (t >= r[0] && t <= r[1]) || (t + 24 >= r[0] && t + 24 <= r[1]);
+    });
+    return inside ? null : 'outside opening hours';
+  }
+
+  function renderTimeline() {
+    if (!el.tlBody) return;
+    const date = selectedDate;
+
+    if (date === 'all') {
+      el.tlTitle.textContent = 'Timeline';
+      el.tlSub.textContent = '';
+      el.tlBody.innerHTML = '<p class="tl__empty">Pick a day above to see its schedule, ' +
+        'with travel time worked out between each stop.</p>';
+      renderTlFoot();
+      return;
+    }
+
+    const day = model.days.find(function (d) { return d.date === date; });
+    const list = timelineItems(date);
+    el.tlTitle.textContent = fmtDate(date);
+    el.tlSub.textContent = day ? ('Day ' + day.n + (day.sleeping ? ' · ' + day.sleeping : '')) : '';
+
+    if (!list.length) {
+      el.tlBody.innerHTML = '<p class="tl__empty">Nothing on this day has a time yet. ' +
+        'Give an entry a time in Notion and it appears here.</p>';
+      renderTlFoot();
+      return;
+    }
+
+    const rows = [];
+    list.forEach(function (i, idx) {
+      const moved = isMoved(i);
+      const warn = closedWarning(i);
+      const sub = [i.subtitle, warn].filter(Boolean).join(' · ');
+
+      rows.push(
+        '<div class="ev' + (i.id === activeId ? ' is-active' : '') + '" data-ev="' + esc(i.id) + '">' +
+          '<button class="ev__t' + (moved ? ' is-moved' : '') + '" data-tedit="' + esc(i.id) + '" ' +
+            'title="' + (moved ? 'Moved from ' + esc(i.time || '—') : 'Change the time') + '">' +
+            esc(timeOf(i) || '—') + (moved ? ' •' : '') + '</button>' +
+          '<span class="ev__dot' + (i.booked === false ? ' is-unbooked' : '') +
+            '" style="--c:' + itemColor(i) + '"></span>' +
+          '<span><span class="ev__name" data-ev-open="' + esc(i.id) + '">' + esc(i.title) + '</span>' +
+            (sub ? '<br><span class="' + (warn ? 'ev__warn' : 'ev__meta') + '">' + esc(sub) + '</span>' : '') +
+          '</span>' +
+          (editingTimeFor === i.id ? timeEditor(i) : '') +
+        '</div>');
+
+      const next = list[idx + 1];
+      if (!next) return;
+      const h = hop(i, next);
+      const gapMin = (parseHM(timeOf(next)) - parseHM(timeOf(i))) * 60;
+      rows.push(gapRow(h, gapMin));
+    });
+
+    el.tlBody.innerHTML = rows.join('');
+    renderTlFoot();
+  }
+
+  function gapRow(h, gapMin) {
+    let txt, cls = '';
+    if (!h) {
+      txt = fmtGap(gapMin) + ' later';
+    } else {
+      const spare = gapMin - h.mins;
+      const how = h.exact ? '' : '≈';
+      const lead = how + fmtGap(h.mins) + ' <span class="gap__mode">' +
+                   esc((MODES[h.mode] || MODES.other).label.toLowerCase()) + '</span>';
+      if (spare < 0) { cls = ' gap--over'; txt = lead + ' — ' + fmtGap(spare) + ' short'; }
+      else if (spare < 15) { cls = ' gap--tight'; txt = lead + ' — only ' + fmtGap(spare) + ' spare'; }
+      else { txt = lead + ' — ' + fmtGap(spare) + ' there'; }
+    }
+    return '<div class="gap' + cls + '"><span></span>' +
+           '<span class="gap__line"></span><span class="gap__txt">' + txt + '</span></div>';
+  }
+
+  function timeEditor(i) {
+    return '<div class="tedit">' +
+      '<button data-nudge="' + esc(i.id) + '|-30">&minus;30</button>' +
+      '<button data-nudge="' + esc(i.id) + '|-10">&minus;10</button>' +
+      '<input type="time" value="' + esc(timeOf(i) || '') + '" data-tset="' + esc(i.id) + '">' +
+      '<button data-nudge="' + esc(i.id) + '|10">+10</button>' +
+      '<button data-nudge="' + esc(i.id) + '|30">+30</button>' +
+      (isMoved(i) ? '<button class="tedit__reset" data-treset="' + esc(i.id) +
+        '" title="Back to the time in Notion">reset</button>' : '') +
+      '</div>';
+  }
+
+  function pathIsPending(p) { return !p.notionId || !!p.pendingEdit; }
+
+  function pendingCount() {
+    const t = Object.keys(timeOverrides).length;
+    const p = draftPaths.filter(pathIsPending).length;
+    return { times: t, paths: p, total: t + p };
+  }
+
+  function renderTlFoot() {
+    const n = pendingCount();
+    const parts = [];
+
+    if (n.total) {
+      const bits = [];
+      if (n.times) bits.push(n.times + ' time' + (n.times === 1 ? '' : 's'));
+      if (n.paths) bits.push(n.paths + ' path' + (n.paths === 1 ? '' : 's'));
+      parts.push('<button class="btn btn--on" id="btnSave"' + (saving ? ' disabled' : '') + '>' +
+                 (saving ? 'Saving…' : 'Save ' + bits.join(' + ') + ' to Notion') + '</button>');
+      parts.push('<button class="btn btn--ghost" id="btnCopyTimes">Copy instead</button>');
+      parts.push('<button class="btn btn--ghost" id="btnClearTimes">Discard</button>');
+    } else {
+      parts.push('<span class="tl__sub">Click a time to move it. ' +
+                 (editSecret ? 'Saving to Notion is set up.' : 'Changes stay in this browser until you save.') +
+                 '</span>');
+    }
+    parts.push('<button class="btn btn--ghost" id="btnSecret" title="Passphrase for saving to Notion">' +
+               (editSecret ? 'Passphrase set' : 'Set passphrase') + '</button>');
+    el.tlFoot.innerHTML = parts.join('');
+  }
+
+  /* ──────────────────────────────────────────────────────────────────────
+     SAVING TO NOTION
+     The read function is public; this one needs the passphrase, because the
+     site is on a public URL. The passphrase is kept in this browser and sent
+     with each save — it is a gate against a stranger finding the URL, not a
+     secret safe from anyone using this machine.
+     ────────────────────────────────────────────────────────────────────── */
+
+  function promptSecret() {
+    const v = window.prompt(
+      'Passphrase for saving to Notion.\n\n' +
+      'This is the EDIT_SECRET set on the Netlify deploy. It is stored in this ' +
+      'browser so you only type it once.', editSecret || '');
+    if (v === null) return;
+    editSecret = v.trim();
+    lsSet(LS_SECRET, editSecret);
+    renderTlFoot();
+    toast(editSecret ? 'Passphrase saved in this browser.' : 'Passphrase cleared.');
+  }
+
+  async function saveToNotion() {
+    if (saving) return;
+    const n = pendingCount();
+    if (!n.total) return;
+    if (!editSecret) { promptSecret(); if (!editSecret) return; }
+
+    saving = true;
+    renderTlFoot();
+
+    const times = Object.keys(timeOverrides).map(function (id) {
+      const i = model.byId[id];
+      if (!i) return null;
+      return { id: id, time: timeOverrides[id], date: i.dates[0], kind: i.kind };
+    }).filter(Boolean);
+
+    const paths = draftPaths.filter(pathIsPending).map(function (p) {
+      const pts = simplifyForStorage(p.points);
+      return {
+        id: p.id, notionId: p.notionId || null,
+        name: p.name, date: p.date, time: p.time || null,
+        fromName: p.fromName || null, toName: p.toName || null,
+        miles: pts.length > 1 ? parseFloat(routeMiles(pts)) : null,
+        route: pts.map(function (q) { return q[0].toFixed(5) + ',' + q[1].toFixed(5); }).join('; ')
+      };
+    });
+
+    let res, json;
+    try {
+      res = await fetch(SAVE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: editSecret, times: times, paths: paths })
+      });
+      json = await res.json();
+    } catch (e) {
+      saving = false; renderTlFoot();
+      toast('Could not reach the save endpoint. Is save-trip-data deployed?');
+      return;
+    }
+
+    saving = false;
+
+    if (res.status === 401) {
+      editSecret = '';
+      lsSet(LS_SECRET, '');
+      renderTlFoot();
+      toast('Wrong passphrase — cleared it, set it again.');
+      return;
+    }
+    if (!json || (!json.applied && !json.failed)) {
+      renderTlFoot();
+      toast((json && json.error) || 'Save failed with an unexpected response.');
+      return;
+    }
+
+    // Apply only what actually landed. A partial failure must leave the
+    // unsaved half pending rather than silently dropping it.
+    (json.applied || []).forEach(function (a) {
+      if (a.type === 'time') {
+        const item = model.byId[a.id];
+        if (item && timeOverrides[a.id]) {
+          item.time = timeOverrides[a.id];   // Notion now agrees; stop flagging it
+          delete timeOverrides[a.id];
+        }
+      } else if (a.type === 'path') {
+        const p = draftPaths.find(function (x) { return x.id === a.id; });
+        if (p) {
+          p.notionId = a.notionId;
+          p.pendingEdit = false;
+          p.points = simplifyForStorage(p.points);
+          p.anchors = p.anchors && p.anchors.length <= p.points.length ? p.anchors : p.points.slice();
+        }
+      }
+    });
+    lsSet(LS_TIMES, timeOverrides);
+    savePaths();
+    refreshAll();
+
+    const failed = json.failed || [];
+    if (!failed.length) {
+      toast('Saved to Notion.');
+    } else {
+      const first = failed[0];
+      toast(failed.length + ' of ' + (failed.length + (json.applied || []).length) +
+            ' failed: ' + (first.error || 'unknown').slice(0, 90));
+    }
+  }
+
+  function copyTimeChanges() {
+    const lines = Object.keys(timeOverrides).map(function (id) {
+      const i = model.byId[id];
+      if (!i) return null;
+      return (i.dates[0] || '') + '  ' + (i.time || '—') + ' → ' + timeOverrides[id] + '  ' + i.title;
+    }).filter(Boolean).sort();
+    if (!lines.length) return;
+    copyText(lines.join('\n'), lines.length + ' change(s) copied — paste into Notion');
+  }
+
   /* ── DETAIL PANEL ──────────────────────────────────────────────────────── */
 
   function select(id) {
+    if (drawing) return;            // clicks belong to the draw tool
     activeId = id;
     stackIds = null;
+    editingTimeFor = null;
     renderDetail();
     renderMap(false);
+    renderTimeline();
     const i = model.byId[id];
     if (i && view === 'map' && map) {
       if (i.geo === 'point' && i.lat != null) map.panTo([i.lat, i.lng]);
@@ -1354,6 +2057,322 @@ window.AIRPORTS = {
     el.detail.classList.add('is-open');
   }
 
+  /* ──────────────────────────────────────────────────────────────────────
+     PATH TOOL
+     Click points on the map to build a line. Auto mode asks a routing service
+     to follow real streets between the last point and the new one; manual mode
+     joins them directly. A finished path can be reopened and its vertices
+     dragged. Paths live in this browser and copy out as a Route string for the
+     Notion Places column, which is the same format the app already reads.
+     ────────────────────────────────────────────────────────────────────── */
+
+  function newId() {
+    return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function startDraw() {
+    if (drawing) return;
+    editingPathId = null;
+    drawing = { id: newId(), points: [], anchors: [], pending: 0 };
+    el.stage.classList.add('drawing');
+    updateDrawBar();
+    renderPaths();
+  }
+
+  function cancelDraw() {
+    drawing = null;
+    el.stage.classList.remove('drawing');
+    renderPaths();
+  }
+
+  function updateDrawBar() {
+    if (!drawing) return;
+    const n = drawing.anchors.length;
+    el.drawCount.textContent = n + (n === 1 ? ' point' : ' points') +
+      (drawing.pending ? ' · routing…' : '');
+    el.drawHint.textContent = n === 0
+      ? 'Click the map to start. Click an existing node to snap to it.'
+      : 'Click to add. Click a node to finish there, or End path.';
+    el.btnUndoPt.disabled = n === 0;
+    el.btnEndPath.disabled = n < 2;
+  }
+
+  // Appends a point. In auto mode the segment from the previous anchor is
+  // replaced by the routed geometry; if routing fails the straight segment
+  // stands, so the tool never blocks on the network.
+  async function addDrawPoint(lat, lng, finish) {
+    if (!drawing) return;
+    const prev = drawing.anchors[drawing.anchors.length - 1];
+    drawing.anchors.push([lat, lng]);
+
+    if (!prev) {
+      drawing.points = [[lat, lng]];
+    } else if (autoRoute) {
+      drawing.points.push([lat, lng]);          // provisional straight segment
+      drawing.pending++;
+      updateDrawBar();
+      renderPaths();
+      const seg = await routeSegment(prev, [lat, lng]);
+      drawing.pending--;
+      if (drawing && seg && seg.length > 1) {
+        // Replace just the straight segment we added, leaving earlier ones alone.
+        drawing.points.pop();
+        seg.slice(1).forEach(function (pt) { drawing.points.push(pt); });
+      }
+    } else {
+      drawing.points.push([lat, lng]);
+    }
+
+    updateDrawBar();
+    renderPaths();
+    if (finish && drawing.anchors.length >= 2) endDraw();
+  }
+
+  function undoPoint() {
+    if (!drawing || !drawing.anchors.length) return;
+    drawing.anchors.pop();
+    // Rebuilding beats trying to unpick routed geometry point by point.
+    const anchors = drawing.anchors.slice();
+    drawing.points = anchors.slice();
+    updateDrawBar();
+    renderPaths();
+    if (autoRoute && anchors.length > 1) rebuildRouted(anchors);
+  }
+
+  async function rebuildRouted(anchors) {
+    const out = [anchors[0]];
+    for (let i = 1; i < anchors.length; i++) {
+      const seg = await routeSegment(anchors[i - 1], anchors[i]);
+      if (seg && seg.length > 1) seg.slice(1).forEach(function (p) { out.push(p); });
+      else out.push(anchors[i]);
+    }
+    if (drawing) { drawing.points = out; renderPaths(); }
+    else if (editingPathId) {
+      const p = draftPaths.find(function (x) { return x.id === editingPathId; });
+      if (p) { p.points = out; savePaths(); renderPaths(); }
+    }
+  }
+
+  // What is this path between? Looks for a known node near each end so the
+  // saved Transport row reads "Walk: Hoi An Airbnb → Japanese Covered Bridge"
+  // rather than a pair of coordinates.
+  function nearestName(pt, maxMeters) {
+    let best = null, bestD = Infinity;
+    model.items.forEach(function (i) {
+      const q = i.geo === 'leg' ? null : (i.lat != null ? [i.lat, i.lng] : null);
+      if (!q) return;
+      const d = gcMilesExact(pt, q) * 1609.34;
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    return (best && bestD <= (maxMeters || 220)) ? best.title : null;
+  }
+
+  function endDraw() {
+    if (!drawing || drawing.anchors.length < 2) return;
+    const day = selectedDate === 'all' ? (model.days[0] && model.days[0].date) : selectedDate;
+    const pts = drawing.points;
+    const fromName = nearestName(pts[0]);
+    const toName = nearestName(pts[pts.length - 1]);
+    const label = (fromName && toName) ? ('Walk: ' + fromName + ' → ' + toName)
+                : fromName ? ('Walk from ' + fromName)
+                : toName ? ('Walk to ' + toName)
+                : 'Path ' + (draftPaths.length + 1);
+
+    draftPaths.push({
+      id: drawing.id,
+      name: label,
+      date: day,
+      fromName: fromName,
+      toName: toName,
+      points: drawing.points.slice(),
+      anchors: drawing.anchors.slice(),
+      auto: autoRoute
+    });
+    savePaths();
+    drawing = null;
+    el.stage.classList.remove('drawing');
+    renderPaths();
+    renderTlFoot();
+    toast(editSecret ? 'Path drawn. Save to push it to Notion.'
+                     : 'Path drawn and kept in this browser.');
+  }
+
+  // OSRM returns GeoJSON [lng,lat]; Leaflet wants [lat,lng]. AbortController
+  // keeps a hung request from leaving the tool stuck in "routing…".
+  async function routeSegment(a, b) {
+    const url = OSRM + a[1] + ',' + a[0] + ';' + b[1] + ',' + b[0] +
+                '?overview=full&geometries=geojson';
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = setTimeout(function () { ctrl && ctrl.abort(); }, OSRM_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      const coords = json && json.routes && json.routes[0] &&
+                     json.routes[0].geometry && json.routes[0].geometry.coordinates;
+      if (!coords || !coords.length) throw new Error('no route');
+      return coords.map(function (c) { return [c[1], c[0]]; });
+    } catch (e) {
+      clearTimeout(timer);
+      toast('Auto-routing unavailable — straight line used.');
+      return null;
+    }
+  }
+
+  function savePaths() {
+    lsSet(LS_PATHS, draftPaths.map(function (p) {
+      return { id: p.id, name: p.name, date: p.date, points: p.points,
+               anchors: p.anchors, auto: p.auto,
+               fromName: p.fromName || null, toName: p.toName || null,
+               notionId: p.notionId || null, pendingEdit: !!p.pendingEdit };
+    }));
+  }
+
+  async function deletePath(id) {
+    const p = draftPaths.find(function (x) { return x.id === id; });
+    const notionId = p && p.notionId;
+
+    draftPaths = draftPaths.filter(function (x) { return x.id !== id; });
+    if (editingPathId === id) editingPathId = null;
+    savePaths();
+    renderPaths();
+    renderTlFoot();
+
+    // A path that reached Notion has to be archived there too, or it comes
+    // straight back on the next reload.
+    if (notionId && editSecret) {
+      try {
+        const res = await fetch(SAVE_API, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ secret: editSecret, deletePathIds: [notionId] })
+        });
+        const j = await res.json();
+        toast(j && j.ok ? 'Path removed, and archived in Notion.'
+                        : 'Removed here, but Notion said no — it will return on reload.');
+      } catch (e) {
+        toast('Removed here, but Notion could not be reached — it will return on reload.');
+      }
+      refreshAll();
+    } else if (notionId) {
+      toast('Removed here. It is still in Notion — set the passphrase to archive it.');
+    }
+  }
+
+  function pathCoordString(p) {
+    return p.points.map(function (pt) {
+      return pt[0].toFixed(5) + ',' + pt[1].toFixed(5);
+    }).join('; ');
+  }
+
+  function toggleEditPath(id) {
+    editingPathId = editingPathId === id ? null : id;
+    renderPaths();
+    if (editingPathId) toast('Drag a vertex to move it. Click one to delete it.');
+  }
+
+  // Draft paths render into their own layer so a day change, a zoom-driven
+  // recluster or a redraw of the day never wipes them.
+  function renderPaths() {
+    if (!pathLayer) return;
+    pathLayer.clearLayers();
+
+    const live = drawing
+      ? [{ id: drawing.id, name: 'drawing', points: drawing.points, anchors: drawing.anchors, live: true }]
+      : [];
+
+    live.concat(draftPaths).forEach(function (p) {
+      if (!p.points || p.points.length < 1) return;
+      if (p.points.length > 1) {
+        L.polyline(p.points, {
+          pane: 'legCase', color: '#060b0f', weight: 8.5, opacity: 0.85, interactive: false
+        }).addTo(pathLayer);
+        L.polyline(p.points, {
+          pane: 'legs', color: p.live ? '#7fd4ff' : '#9ad9f5', weight: 4,
+          opacity: 1, dashArray: p.live ? '6 5' : null,
+          interactive: !p.live
+        }).on('click', function () { if (!p.live) toggleEditPath(p.id); })
+          .bindTooltip(p.live ? 'Drawing…' : p.name, { className: 'tip', sticky: true })
+          .addTo(pathLayer);
+      }
+
+      // Anchors are shown while drawing, and while a saved path is being edited.
+      const showVerts = p.live || p.id === editingPathId;
+      if (!showVerts) return;
+      (p.anchors || p.points).forEach(function (pt, idx) {
+        const m = L.marker(pt, {
+          icon: L.divIcon({ className: '', iconSize: [13, 13], iconAnchor: [6.5, 6.5],
+                            html: '<div class="vertex"></div>' }),
+          draggable: !p.live, zIndexOffset: 700
+        });
+        if (!p.live) {
+          m.on('dragend', function (e) {
+            const ll = e.target.getLatLng();
+            moveVertex(p.id, idx, [ll.lat, ll.lng]);
+          });
+          m.on('click', function () { removeVertex(p.id, idx); });
+        }
+        m.addTo(pathLayer);
+      });
+    });
+
+    renderPathList();
+    if (el.tlFoot) renderTlFoot();
+  }
+
+  function markDirty(p) {
+    // An edited path is out of step with its Notion row until saved again.
+    if (p.notionId) { p.pendingEdit = true; }
+  }
+
+  function moveVertex(pathId, idx, latlng) {
+    const p = draftPaths.find(function (x) { return x.id === pathId; });
+    if (!p) return;
+    markDirty(p);
+    const anchors = (p.anchors || p.points).slice();
+    anchors[idx] = latlng;
+    p.anchors = anchors;
+    p.points = anchors.slice();
+    savePaths();
+    renderPaths();
+    if (p.auto && anchors.length > 1) { editingPathId = p.id; rebuildRouted(anchors); }
+  }
+
+  function removeVertex(pathId, idx) {
+    const p = draftPaths.find(function (x) { return x.id === pathId; });
+    if (!p) return;
+    markDirty(p);
+    const anchors = (p.anchors || p.points).slice();
+    if (anchors.length <= 2) { toast('A path needs at least two points.'); return; }
+    anchors.splice(idx, 1);
+    p.anchors = anchors;
+    p.points = anchors.slice();
+    savePaths();
+    renderPaths();
+    if (p.auto) { editingPathId = p.id; rebuildRouted(anchors); }
+  }
+
+  function renderPathList() {
+    const box = $('pathList');
+    if (!box) return;
+    if (!draftPaths.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<div class="paths">' + draftPaths.map(function (p) {
+      const mi = p.points.length > 1 ? routeMiles(p.points) + ' mi' : '';
+      const synced = !!p.notionId;
+      return '<div class="paths__row">' +
+        '<span class="paths__sw"' + (synced ? ' style="background:var(--t-attr)"' : '') +
+          ' title="' + (synced ? 'In Notion' : 'Not saved yet') + '"></span>' +
+        '<button class="paths__nm" data-path-edit="' + esc(p.id) + '" title="Edit vertices">' +
+          esc(p.name) + '<span class="paths__mi">' + esc(mi) +
+          (synced ? ' · in Notion' : '') +
+          (p.id === editingPathId ? ' · editing' : '') + '</span></button>' +
+        '<button class="btn btn--ghost" data-path-copy="' + esc(p.id) + '" ' +
+          'title="Copy as a Route value for Notion">Copy</button>' +
+        '<button class="paths__x" data-path-del="' + esc(p.id) + '" aria-label="Delete path">&times;</button>' +
+        '</div>';
+    }).join('') + '</div>';
+  }
+
   /* ── DAY RAIL ──────────────────────────────────────────────────────────── */
 
   function dayHasUnbooked(date) {
@@ -1395,6 +2414,15 @@ window.AIRPORTS = {
     return model.days.findIndex(function (d) { return d.date === selectedDate; });
   }
 
+  function refreshAll() {
+    renderRail();
+    renderMap(false);
+    renderList();
+    renderTimeline();
+    renderPaths();
+    if (activeId) renderDetail();
+  }
+
   function setDay(date) {
     selectedDate = date;
     activeId = null;
@@ -1402,6 +2430,7 @@ window.AIRPORTS = {
     el.detail.classList.remove('is-open');
     renderRail();
     renderMap(true);
+    renderTimeline();
     if (view === 'list') scrollListToDay(date);
   }
 
@@ -1559,9 +2588,98 @@ window.AIRPORTS = {
       el.legendToggle.innerHTML = c ? '+' : '&minus;';
     });
 
+    /* ── Timeline: open the editor, nudge, set, reset, select ──────────── */
+    el.tlBody.addEventListener('click', function (e) {
+      const t = e.target.closest('[data-tedit]');
+      if (t) {
+        editingTimeFor = editingTimeFor === t.dataset.tedit ? null : t.dataset.tedit;
+        renderTimeline();
+        const input = el.tlBody.querySelector('[data-tset]');
+        if (input) input.focus();
+        return;
+      }
+      const n = e.target.closest('[data-nudge]');
+      if (n) {
+        const parts = n.dataset.nudge.split('|');
+        nudgeTime(parts[0], parseInt(parts[1], 10));
+        return;
+      }
+      const r = e.target.closest('[data-treset]');
+      if (r) { setTimeOverride(r.dataset.treset, null); return; }
+
+      const o = e.target.closest('[data-ev-open]');
+      if (o) { select(o.dataset.evOpen); return; }
+    });
+
+    // 'change' rather than 'input': a partly-typed time would otherwise land as
+    // a real value on every keystroke.
+    el.tlBody.addEventListener('change', function (e) {
+      const set = e.target.closest('[data-tset]');
+      if (set) setTimeOverride(set.dataset.tset, set.value || null);
+    });
+
+    el.tlFoot.addEventListener('click', function (e) {
+      if (e.target.closest('#btnSave')) { saveToNotion(); return; }
+      if (e.target.closest('#btnSecret')) { promptSecret(); return; }
+      if (e.target.closest('#btnCopyTimes')) { copyTimeChanges(); return; }
+      if (e.target.closest('#btnClearTimes')) {
+        timeOverrides = {};
+        lsSet(LS_TIMES, timeOverrides);
+        refreshAll();
+        toast('Times back to what Notion says.');
+      }
+    });
+
+    /* ── Path tool ─────────────────────────────────────────────────────── */
+    el.btnPath.addEventListener('click', function () {
+      if (drawing) endDraw(); else startDraw();
+    });
+    el.btnAuto.addEventListener('click', function () {
+      autoRoute = !autoRoute;
+      el.btnAuto.setAttribute('aria-pressed', String(autoRoute));
+      el.btnAuto.classList.toggle('btn--on', autoRoute);
+      toast(autoRoute
+        ? 'Auto: new segments follow streets where the router can.'
+        : 'Manual: segments join your points directly.');
+    });
+    el.btnEndPath.addEventListener('click', endDraw);
+    el.btnCancelPath.addEventListener('click', cancelDraw);
+    el.btnUndoPt.addEventListener('click', undoPoint);
+
+    const pathBox = $('pathList');
+    pathBox.addEventListener('click', function (e) {
+      const ed = e.target.closest('[data-path-edit]');
+      if (ed) { toggleEditPath(ed.dataset.pathEdit); return; }
+      const cp = e.target.closest('[data-path-copy]');
+      if (cp) {
+        const p = draftPaths.find(function (x) { return x.id === cp.dataset.pathCopy; });
+        if (p) copyText(pathCoordString(p),
+          'Route copied — paste into a Place\'s Route column in Notion.');
+        return;
+      }
+      const dl = e.target.closest('[data-path-del]');
+      if (dl) deletePath(dl.dataset.pathDel);
+    });
+
+    /* ── Timeline visibility ───────────────────────────────────────────── */
+    el.btnTl.addEventListener('click', function () {
+      tlOpen = !tlOpen;
+      el.stage.classList.toggle('no-tl', !tlOpen);
+      el.stage.classList.toggle('tl-open', tlOpen);
+      el.btnTl.classList.toggle('btn--on', tlOpen);
+      if (map) setTimeout(function () { map.invalidateSize(); }, 220);
+    });
+
     document.addEventListener('keydown', function (e) {
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;
+      if (drawing) {
+        // While drawing, the arrow keys would change the day out from under the
+        // path, so only Enter and Escape are live.
+        if (e.key === 'Enter') { e.preventDefault(); endDraw(); }
+        else if (e.key === 'Escape') { cancelDraw(); }
+        return;
+      }
       if (e.key === 'ArrowLeft') { stepDay(-1); }
       else if (e.key === 'ArrowRight') { stepDay(1); }
       else if (e.key === 'Escape') {
@@ -1575,7 +2693,11 @@ window.AIRPORTS = {
     ['tripName', 'tripDates', 'unbookedFlag', 'tabMap', 'tabList', 'railTrack',
      'railPrev', 'railNext', 'map', 'list', 'detail', 'detailBody', 'detailClose',
      'legend', 'legendToggle', 'legendModes', 'legendKey',
-     'modeType', 'modeTime'].forEach(function (k) { el[k] = $(k); });
+     'modeType', 'modeTime',
+     'stage', 'tools', 'btnPath', 'btnAuto', 'btnTl', 'drawBar', 'drawHint',
+     'drawCount', 'btnUndoPt', 'btnEndPath', 'btnCancelPath',
+     'timeline', 'tlTitle', 'tlSub', 'tlBody', 'tlFoot', 'toast',
+     'pathList'].forEach(function (k) { el[k] = $(k); });
   }
 
   /* ── BOOT ──────────────────────────────────────────────────────────────── */
@@ -1595,12 +2717,48 @@ window.AIRPORTS = {
       el.map.style.display = 'none';
       return;
     }
+    // Local edits before the first render, so a reload comes back exactly as
+    // it was left. Stored values are this browser's own, but they are still
+    // parsed defensively: a hand-edited or half-written localStorage entry
+    // should degrade, not throw.
+    const storedTimes = lsGet(LS_TIMES, {});
+    if (storedTimes && typeof storedTimes === 'object' && !Array.isArray(storedTimes)) {
+      Object.keys(storedTimes).forEach(function (k) {
+        if (typeof storedTimes[k] === 'string' && /^\d{1,2}:\d{2}$/.test(storedTimes[k])) {
+          timeOverrides[k] = storedTimes[k];
+        }
+      });
+    }
+    const storedSecret = lsGet(LS_SECRET, '');
+    if (typeof storedSecret === 'string') editSecret = storedSecret;
+
+    const storedPaths = lsGet(LS_PATHS, []);
+    if (Array.isArray(storedPaths)) {
+      draftPaths = storedPaths.filter(function (p) {
+        return p && typeof p.id === 'string' && Array.isArray(p.points) &&
+               p.points.length > 1 &&
+               p.points.every(function (pt) {
+                 return Array.isArray(pt) && pt.length === 2 &&
+                        isFinite(pt[0]) && isFinite(pt[1]) &&
+                        Math.abs(pt[0]) <= 90 && Math.abs(pt[1]) <= 180;
+               });
+      });
+    }
+
     renderChrome();
     initMap();
     renderRail();
     renderList();
     renderMap(true);
+    renderTimeline();
+    renderPaths();
     wire();
+    // Below the breakpoint the rail covers the map rather than sitting beside
+    // it, so start it closed there and let the toolbar button bring it in.
+    tlOpen = window.innerWidth > 980;
+    el.stage.classList.toggle('tl-open', tlOpen);
+    el.stage.classList.toggle('no-tl', !tlOpen);
+    el.btnTl.classList.toggle('btn--on', tlOpen);
     setDay(model.days.length ? model.days[0].date : 'all');
     setView('map');
   }
