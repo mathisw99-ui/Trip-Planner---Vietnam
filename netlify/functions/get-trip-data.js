@@ -80,6 +80,9 @@ const MAP = {
     booked: chk(p['Booked']),
     // Optional walking path: "lat,lng; lat,lng; ..." — parsed client-side.
     route: txt(p['Route']),
+    // Optional. Shades a circle of this radius instead of placing a bare pin,
+    // for entries that are a neighbourhood rather than a point.
+    areaRadius: num(p['Area radius (m)']),
     notes: txt(p['Notes'])
   }),
 
@@ -101,6 +104,10 @@ const MAP = {
     distanceMi: num(p['Distance (mi)']), durationMin: num(p['Duration (min)']),
     elevationFt: num(p['Elevation (ft)']), price: num(p['Price']),
     booked: chk(p['Booked']), link: url(p['Link']),
+    // A traced path for this leg, if one was drawn on the site. When set, the
+    // map follows it instead of drawing a straight line From -> To.
+    route: txt(p['Route']),
+    drawnOnSite: chk(p['Drawn on site']),
     // Notion relations point at exactly one database, so linking a leg to both
     // places and stays needs two columns. The app sees one flat array.
     linkedTo: rel(p['Linked places']).concat(rel(p['Linked stays'])),
