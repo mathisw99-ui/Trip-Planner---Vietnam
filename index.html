@@ -153,7 +153,13 @@ a{color:var(--focus);text-underline-offset:2px}
 }
 .node--place .node__dot,.node--food .node__dot{border-radius:50%}
 .node--stay .node__dot{border-radius:2px}
-.node--hub .node__dot{border-radius:2px;transform:rotate(45deg);inset:3px}
+/* Hollow, not solid. A filled diamond and a filled square read as the same
+   thing at 22px, and the endpoint of a leg was being mistaken for a hotel. */
+.node--hub .node__dot{
+  border-radius:1px;transform:rotate(45deg);inset:2px;
+  background:#0d1419;border:2.5px solid var(--c,#888);
+  box-shadow:0 0 0 1px rgba(255,255,255,.55), 0 1px 6px rgba(0,0,0,.6);
+}
 .node--waypoint .node__dot{inset:6px;border-radius:50%;border-width:1.5px}
 .node__ring{
   position:absolute;inset:0;border-radius:50%;
@@ -375,6 +381,8 @@ a{color:var(--focus);text-underline-offset:2px}
 .bd__addtoggle:hover{color:var(--paper)}
 .bd__add:not(.is-open) .bd__addtoggle{padding-bottom:1px}
 .bd__add .row{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.bd__repop{border-top:1px solid var(--rule);padding-top:7px;margin-top:2px;margin-bottom:0}
+.bd__hint{font-size:11px;color:var(--muted-2);line-height:1.4}
 .bd__add input[type="search"],.bd__add input[type="text"]{flex:1;min-width:110px;padding:3px 6px;font-size:12.5px}
 .cand{max-height:168px;overflow-y:auto;border:1px solid var(--rule);border-radius:2px}
 .cand__row{display:flex;gap:7px;align-items:center;width:100%;padding:4px 7px;text-align:left;font-size:12.5px}
@@ -430,6 +438,24 @@ a{color:var(--focus);text-underline-offset:2px}
 .vertex{
   width:13px;height:13px;border-radius:50%;background:var(--focus);
   border:2px solid #0d1419;box-shadow:0 0 0 1px rgba(255,255,255,.55);cursor:move;
+}
+/* The two ends of a drawn path. A ring where it starts and an arrowhead where
+   it finishes: neither can be read as a place, and together they say which way
+   the path runs. */
+.pend{position:relative;width:24px;height:24px}
+.pend__a{
+  position:absolute;inset:5px;border-radius:50%;
+  background:transparent;border:3px solid #9ad9f5;
+  box-shadow:0 0 0 1.5px rgba(6,11,15,.95), 0 0 8px -1px rgba(154,217,245,.9);
+}
+/* The tip sits at the centre of the box, which is the marker's anchor and so
+   the path's last point — rotating the box then pivots on the tip rather than
+   swinging it off the end of the line. */
+.pend__b{
+  position:absolute;left:5px;top:12px;width:0;height:0;
+  border-left:7px solid transparent;border-right:7px solid transparent;
+  border-bottom:12px solid #9ad9f5;
+  filter:drop-shadow(0 0 1.5px rgba(6,11,15,.95)) drop-shadow(0 0 5px rgba(154,217,245,.8));
 }
 .paths{padding:4px 0 0}
 .paths__row{display:flex;align-items:center;gap:7px;padding:4px 12px;font-size:12.5px}
@@ -1654,6 +1680,56 @@ window.AIRPORTS = {
      Only free-standing nodes cluster. Leg endpoints stay put, so a flight or
      bus line always terminates on a visible node rather than in empty space.
      ───────────────────────────────────────────────────────────────────────── */
+  /* The same place visited twice is two entries in the plan and one place on
+     the map. Dropping the bags at the Airbnb and sleeping there are two rows in
+     the rail — that is the point of being able to add a place more than once —
+     but they are the same building, and drawing them as two nodes a pixel
+     apart made a stack that could not be clicked as a snap target while
+     drawing a path.
+
+     Merged by rounded coordinate, which is what "the same node" means to the
+     eye. The surviving node carries every visit's number, so the rail and the
+     map still refer to each other.
+
+     Only in the Build view. In the Map view the nodes come from the catalogue,
+     where every row is a different place — two of them sharing an address are
+     genuinely two things and each still needs its own click. */
+  function dedupePoints(list) {
+    if (view !== 'build') return list;
+    const seen = {};
+    const out = [];
+    list.forEach(function (i) {
+      const key = i.lat.toFixed(5) + ',' + i.lng.toFixed(5);
+      const at = seen[key];
+      if (at == null) {
+        const copy = {};
+        Object.keys(i).forEach(function (k) { copy[k] = i[k]; });
+        copy.seqList = i.seq ? [i.seq] : [];
+        copy.stackTitles = [i.title];
+        seen[key] = out.length;
+        out.push(copy);
+        return;
+      }
+      const node = out[at];
+      if (i.seq) node.seqList.push(i.seq);
+      if (node.stackTitles.indexOf(i.title) === -1) node.stackTitles.push(i.title);
+      // One unbooked visit is enough to flag the place.
+      if (i.booked === false) node.booked = false;
+      if (i.areaRadius && !node.areaRadius) node.areaRadius = i.areaRadius;
+      if (i.route && !node.route) node.route = i.route;
+    });
+    out.forEach(function (n) {
+      // Three numbers is as much as the chip under a node can carry before it
+      // is wider than the node itself.
+      if (n.seqList.length) {
+        n.seq = n.seqList.length <= 3 ? n.seqList.join('\u00b7')
+          : n.seqList.slice(0, 2).join('\u00b7') + '+' + (n.seqList.length - 2);
+      }
+      if (n.stackTitles.length > 1) n.title = n.stackTitles.join(' / ');
+    });
+    return out;
+  }
+
   function clusterPoints(list) {
     if (!map || !list.length) return list.map(function (i) { return [i]; });
 
@@ -1746,7 +1822,15 @@ window.AIRPORTS = {
 
     L.marker(c, { icon: clusterIcon(items), riseOnHover: true, zIndexOffset: 400 })
       .bindTooltip(names.join('<br>'), { className: 'tip', direction: 'top', offset: [0, -14] })
-      .on('click', function () { openCluster(items); })
+      .on('click', function () {
+        // A cluster has to be a snap target as well, or a path cannot be
+        // finished anywhere the map is dense — which is everywhere worth
+        // drawing a path.
+        if (drawing) { addDrawPoint(c[0], c[1], true); return; }
+        if (picking) { finishPick(c[0], c[1]); return; }
+        if (linking) { finishLink(items[0].id); return; }
+        openCluster(items);
+      })
       .addTo(dayLayer);
   }
 
@@ -1864,7 +1948,12 @@ window.AIRPORTS = {
     L.polyline(item.route, {
       pane: 'legs', color: colour, weight: style.weight, opacity: 1,
       dashArray: style.dash, lineCap: style.cap, interactive: true
-    }).on('click', function () { select(item.id); })
+    }).on('click', function (ev) {
+      if (drawing) { addDrawPoint(ev.latlng.lat, ev.latlng.lng, false); return; }
+      if (picking) { finishPick(ev.latlng.lat, ev.latlng.lng); return; }
+      if (linking) { finishLink(item.id); return; }
+      select(item.id);
+    })
       .bindTooltip(item.title, { className: 'tip', sticky: true })
       .addTo(dayLayer);
 
@@ -1882,7 +1971,14 @@ window.AIRPORTS = {
       pane: 'areas', radius: item.areaRadius,
       color: c, weight: 1.5, opacity: 0.55, dashArray: '3 5',
       fillColor: c, fillOpacity: 0.1, interactive: true
-    }).on('click', function () { select(item.id); })
+    }).on('click', function (ev) {
+      // While a tool is active the shape is a surface to click through, not a
+      // thing to open: an area covers most of the map it sits on.
+      if (drawing) { addDrawPoint(ev.latlng.lat, ev.latlng.lng, false); return; }
+      if (picking) { finishPick(ev.latlng.lat, ev.latlng.lng); return; }
+      if (linking) { finishLink(item.id); return; }
+      select(item.id);
+    })
       .bindTooltip(item.title, { className: 'tip', sticky: true })
       .addTo(dayLayer);
   }
@@ -1929,7 +2025,7 @@ window.AIRPORTS = {
       }
     });
 
-    clusterPoints(points).forEach(function (group) {
+    clusterPoints(dedupePoints(points)).forEach(function (group) {
       if (group.length === 1) addNode(group[0], group[0].lat, group[0].lng, group[0].kind);
       else addCluster(group);
     });
@@ -2648,6 +2744,29 @@ window.AIRPORTS = {
           .addTo(pathLayer);
       }
 
+      /* Both ends, always. They used to be bare line ends, and once a path
+         reached Notion its endpoints were drawn as leg hubs — which looked
+         like a hotel. A ring and an arrowhead cannot be read as a place. */
+      if (p.points.length > 1) {
+        const a = p.points[0], z = p.points[p.points.length - 1];
+        const bearing = Math.atan2(
+          z[1] - p.points[p.points.length - 2][1],
+          z[0] - p.points[p.points.length - 2][0]);
+        L.marker(a, {
+          icon: L.divIcon({ className: '', iconSize: [24, 24], iconAnchor: [12, 12],
+                            html: '<div class="pend"><span class="pend__a"></span></div>' }),
+          interactive: false, zIndexOffset: 650
+        }).addTo(pathLayer);
+        L.marker(z, {
+          icon: L.divIcon({ className: '', iconSize: [24, 24], iconAnchor: [12, 12],
+            // Rotated to point the way the last segment runs: a bearing of 0 is
+            // due north, and the arrowhead is drawn pointing up.
+            html: '<div class="pend" style="transform:rotate(' +
+                  (90 - bearing * D).toFixed(1) + 'deg)"><span class="pend__b"></span></div>' }),
+          interactive: false, zIndexOffset: 650
+        }).addTo(pathLayer);
+      }
+
       // Anchors are shown while drawing, and while a saved path is being edited.
       const showVerts = p.live || p.id === editingPathId;
       if (!showVerts) return;
@@ -2805,30 +2924,69 @@ window.AIRPORTS = {
     });
   }
 
-  /* Merging the browser's copy with Notion's.
+  /* Loading the plan.
 
-     Three cases, and each has to be handled or an edit quietly disappears:
-     a row edited here is kept over Notion's version; a row created here and
-     not yet saved has no Notion id and is kept as-is; a row whose Notion id
-     has gone was deleted upstream, so the local copy goes too rather than
-     being re-created on the next save. */
-  function mergePlan(fromNotion, stored) {
-    if (!Array.isArray(stored) || !stored.length) return fromNotion;
+     Once a plan exists in this browser it IS the plan. Notion is read to seed
+     it the first time and never again unless asked, because the schedule in
+     Notion is a transcription of the spreadsheet — a starting suggestion — and
+     merging it back in on every load meant the day you had built kept being
+     overwritten by the day you were trying to replace.
 
-    const live = {};
-    fromNotion.forEach(function (e) { live[e.notionId] = e; });
-    const seen = {};
-    const out = [];
+     The old merge also re-added every Notion row the stored plan did not
+     contain. A row deleted here was therefore resurrected on the next reload,
+     which is what made a day you had cleared come back full.
 
-    stored.forEach(function (e) {
-      if (!e || typeof e !== 'object') return;
-      if (!e.notionId) { out.push(normaliseEntry(e)); return; }   // new here
-      if (!live[e.notionId]) return;                              // gone upstream
-      seen[e.notionId] = true;
-      out.push(e.dirty ? normaliseEntry(e) : live[e.notionId]);
+     Pulling Notion's version back is now a deliberate act: Auto-populate. */
+  function loadPlan(fromNotion, stored) {
+    const have = stored && Array.isArray(stored.entries) && stored.entries.length;
+    if (!have) return fromNotion;              // first visit: seed from Notion
+    return stored.entries
+      .filter(function (e) { return e && typeof e === 'object'; })
+      .map(normaliseEntry);
+  }
+
+  /* Notion rows this plan has never seen. Not pulled in — just counted, so a
+     row added in Notion is discoverable without anything being overwritten. */
+  function unseenFromNotion(date) {
+    const mine = {};
+    plan.forEach(function (e) { if (e.notionId) mine[e.notionId] = true; });
+    return planFromNotion.filter(function (e) {
+      return e.notionId && !mine[e.notionId] && (!date || e.date === date);
     });
-    fromNotion.forEach(function (e) { if (!seen[e.notionId]) out.push(e); });
-    return out;
+  }
+
+  /* Auto-populate: throw away this day and take Notion's version of it.
+     Deliberately destructive and deliberately per-day — "repopulate the whole
+     trip" is a thing you would almost never mean to press. */
+  function autoPopulate(date) {
+    if (!date || date === 'all') return;
+    const mine = planOn(date);
+    const theirs = planFromNotion.filter(function (e) { return e.date === date; });
+    if (!theirs.length) {
+      toast('Notion has nothing for ' + fmtDate(date) + '.');
+      return;
+    }
+    if (mine.length && typeof window.confirm === 'function') {
+      const ok = window.confirm(
+        'Replace ' + fmtDate(date) + ' with Notion\'s version?\n\n' +
+        mine.length + ' entr' + (mine.length === 1 ? 'y' : 'ies') + ' here will be ' +
+        'discarded and ' + theirs.length + ' taken from Notion. This cannot be undone.');
+      if (!ok) return;
+    }
+
+    // A local row with a Notion id is being replaced by that same row, so it
+    // is not a deletion; one created here and never saved simply goes.
+    const back = {};
+    theirs.forEach(function (e) { back[e.notionId] = true; });
+    planDeleted = planDeleted.filter(function (id) { return !back[id]; });
+
+    plan = plan.filter(function (e) { return e.date !== date; });
+    theirs.forEach(function (e) {
+      const c = {}; Object.keys(e).forEach(function (k) { c[k] = e[k]; });
+      plan.push(normaliseEntry(c));
+    });
+    delete dayStartEdits[date];
+    planCommit(fmtDate(date) + ' taken from Notion — ' + theirs.length + ' entries.');
   }
 
   // localStorage is this browser's own, but it is still untrusted input: a
@@ -3695,6 +3853,7 @@ window.AIRPORTS = {
       return;
     }
 
+    const unseen = unseenFromNotion(date).length;
     const q = buildFilter.trim().toLowerCase();
     const pool = model.items.filter(function (i) {
       return i.geo === 'point' && (i.kind === 'place' || i.kind === 'food' || i.kind === 'stay');
@@ -3729,6 +3888,13 @@ window.AIRPORTS = {
         '<button class="mini" id="bdNewPlace">+ new place</button>' +
         '<button class="mini" id="bdNewArea">+ walking area</button>' +
         '<select id="bdNewLeg"><option value="">+ travel leg…</option>' + modeOptions(null) + '</select>' +
+      '</div>' +
+      '<div class="row bd__repop">' +
+        '<button class="mini" id="bdAutoPop" title="Throw this day away and take ' +
+          'Notion\'s version of it. Nothing here is pulled in automatically.">' +
+          'auto-populate from Notion</button>' +
+        (unseen ? '<span class="bd__hint">' + unseen + ' row' + (unseen === 1 ? '' : 's') +
+          ' in Notion for this day ' + (unseen === 1 ? 'is' : 'are') + ' not in your plan</span>' : '') +
       '</div>';
   }
 
@@ -4079,6 +4245,7 @@ window.AIRPORTS = {
         if (nm && nm.trim()) startPick('place', nm.trim());
         return;
       }
+      if (e.target.closest('#bdAutoPop')) { autoPopulate(selectedDate); return; }
       if (e.target.closest('#bdNewArea')) {
         const nm = window.prompt('What area is it? e.g. "Walk around District 3"', '');
         if (!nm || !nm.trim()) return;
@@ -4320,14 +4487,19 @@ window.AIRPORTS = {
       });
     }
 
-    // The plan, reconciled with Notion. A row edited here wins over Notion's
-    // copy; a row Notion no longer has is dropped rather than resurrected.
+    // Notion seeds the plan once. After that this browser's copy is the plan,
+    // and Notion is pulled in only by Auto-populate.
     planFromNotion = planFromRaw(raw);
     const storedPlan = lsGet(LS_PLAN, null);
-    plan = mergePlan(planFromNotion, storedPlan && storedPlan.entries);
     if (storedPlan && Array.isArray(storedPlan.deleted)) {
       planDeleted = storedPlan.deleted.filter(function (x) { return typeof x === 'string'; });
     }
+    const firstEver = !(storedPlan && Array.isArray(storedPlan.entries) && storedPlan.entries.length);
+    plan = loadPlan(planFromNotion, storedPlan);
+    // Pin the seed on the first visit. Otherwise "populate at the beginning"
+    // would quietly mean "populate on every load until you edit something",
+    // and a change in Notion would arrive unannounced.
+    if (firstEver && plan.length) savePlanLocal();
     if (storedPlan && storedPlan.starts && typeof storedPlan.starts === 'object') {
       Object.keys(storedPlan.starts).forEach(function (k) {
         if (/^\d{1,2}:\d{2}$/.test(String(storedPlan.starts[k]))) dayStartEdits[k] = storedPlan.starts[k];

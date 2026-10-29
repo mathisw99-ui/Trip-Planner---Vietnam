@@ -342,6 +342,18 @@ order changed, a stop moved to another day — becomes a row here with
 `Published` ticked. Removing one on the site archives it (Notion's trash) on
 the next save; nothing is destroyed.
 
+### This database seeds the plan; it does not own it
+
+The site reads these rows once, on a browser's first visit, and then the
+browser's copy is the plan. Editing a row here does **not** change a plan that
+already exists — the site's **Auto-populate** button pulls a day's rows back in,
+and nothing else does. The 73 rows seeded here are a transcription of the
+spreadsheet's schedule: a starting suggestion, not a source of truth to be
+re-imposed on a day someone has since built by hand.
+
+A row added here is counted rather than merged: the site's add drawer says how
+many rows this database has for the day that the plan does not.
+
 ---
 
 ## Environment variables

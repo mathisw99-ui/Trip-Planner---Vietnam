@@ -425,14 +425,19 @@ repeat visits, map picking, persistence and the save payload), `parse.js` and
 `hours.js` (the two parsers, case by case), `save.js` (the write endpoint
 against a mock Notion), `sync.js` (an in-page save round trip) and `bshot.js`
 (Playwright: real layout, the Netlify badge clearance, tab switching and the
-narrow breakpoint). 275 assertions plus 25 in the browser, all passing.
+narrow breakpoint). 293 assertions plus 25 in the browser, all passing.
 
-Four of those exist because the thing they check was once wrong in a way nothing
-else would have caught: the schedule must replay the source times exactly; the
-page must not be scrollable sideways; a stored duration must not be recomputed
-from the mode; and a blank coordinate must survive the localStorage round trip
-as a blank. `Number(null)` is `0`, not `NaN`, and that one line turned every
-empty coordinate into 0°N 0°E on the first reload after an edit.
+Five of those exist because the thing they check was once wrong in a way nothing
+else would have caught:
+
+- the computed schedule must replay the source times exactly;
+- the page must not be scrollable sideways;
+- a stored duration must not be recomputed from the mode;
+- a blank coordinate must survive the `localStorage` round trip as a blank —
+  `Number(null)` is `0`, not `NaN`, and that one line turned every empty
+  coordinate into 0°N 0°E on the first reload after an edit;
+- **a day you stripped must stay stripped** across a reload, which is the one
+  that kept Notion's seed from overwriting a plan built by hand.
 
 `new Function()` on each `<script>` block catches syntax only — it cannot see a
 scope or temporal-dead-zone error. Also run a declaration-before-use scan over the
